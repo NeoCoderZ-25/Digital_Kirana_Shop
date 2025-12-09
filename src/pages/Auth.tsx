@@ -113,11 +113,11 @@ const Auth = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md animate-fade-in border-border/50 bg-card/80 backdrop-blur">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-2 animate-bounce-subtle">
+          <div className="mx-auto w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mb-2 animate-bounce-subtle spice-glow">
             <ShoppingBag className="w-8 h-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">MunaajiRangDukan</CardTitle>
-          <p className="text-muted-foreground text-sm">Your colorful shopping destination</p>
+          <CardTitle className="text-2xl font-bold text-foreground font-display">मुनाजी रंग दुकान</CardTitle>
+          <p className="text-muted-foreground text-sm">Your neighborhood kirana store</p>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

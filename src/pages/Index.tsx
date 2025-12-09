@@ -13,10 +13,10 @@ const Index = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-muted-foreground text-sm">Welcome back,</p>
+            <p className="text-muted-foreground text-sm">नमस्ते,</p>
             <h1 className="text-2xl font-bold text-foreground">{username}!</h1>
           </div>
-          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center spice-glow">
             <ShoppingBag className="w-5 h-5 text-primary" />
           </div>
         </div>
