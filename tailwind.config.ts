@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        display: ['Noto Sans Devanagari', 'Poppins', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -68,6 +68,12 @@ export default {
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
+        },
+        // Kirana specific colors
+        spice: {
+          red: "hsl(var(--spice-red))",
+          turmeric: "hsl(var(--turmeric))",
+          cardamom: "hsl(var(--cardamom))",
         },
       },
       borderRadius: {
