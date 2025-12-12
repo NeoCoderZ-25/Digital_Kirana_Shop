@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss";
 
+// Add float animation for Auth page backgrounds
+
 export default {
   darkMode: ["class"],
   content: [
@@ -105,6 +107,10 @@ export default {
           "0%, 100%": { boxShadow: "0 0 5px hsl(var(--primary) / 0.5)" },
           "50%": { boxShadow: "0 0 20px hsl(var(--primary) / 0.8)" },
         },
+        "float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-20px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -113,6 +119,7 @@ export default {
         "slide-in": "slide-in 0.3s ease-out forwards",
         "scale-in": "scale-in 0.2s ease-out forwards",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "float": "float 6s ease-in-out infinite",
       },
     },
   },

@@ -316,6 +316,7 @@ export type Database = {
           email: string
           id: string
           phone: string | null
+          preferred_language: string | null
           updated_at: string | null
           user_id: string
           username: string
@@ -325,6 +326,7 @@ export type Database = {
           email: string
           id?: string
           phone?: string | null
+          preferred_language?: string | null
           updated_at?: string | null
           user_id: string
           username: string
@@ -334,6 +336,7 @@ export type Database = {
           email?: string
           id?: string
           phone?: string | null
+          preferred_language?: string | null
           updated_at?: string | null
           user_id?: string
           username?: string
