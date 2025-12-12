@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
   product: Product;
+  compact?: boolean;
 }
 
-export const ProductCard = ({ product }: ProductCardProps) => {
+export const ProductCard = ({ product, compact = false }: ProductCardProps) => {
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
@@ -45,7 +46,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   };
 
   return (
-    <Card className="group relative overflow-hidden bg-card hover:shadow-lg transition-shadow duration-300 animate-fade-in">
+    <Card className={cn(
+      "group relative overflow-hidden bg-card hover:shadow-lg transition-shadow duration-300 animate-fade-in",
+      compact && "min-w-[160px]"
+    )}>
       {/* Favorite Button */}
       <button
         onClick={handleFavoriteClick}
@@ -54,20 +58,20 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         <Heart
           className={cn(
             'w-4 h-4 transition-all',
-            favorite ? 'fill-destructive text-destructive animate-heart' : 'text-muted-foreground'
+            favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'
           )}
         />
       </button>
 
       {/* Featured Badge */}
-      {product.is_featured && (
+      {product.is_featured && !compact && (
         <Badge className="absolute top-2 left-2 z-10 deal-badge">
           Featured
         </Badge>
       )}
 
       {/* Product Image */}
-      <div className="aspect-square overflow-hidden bg-muted">
+      <div className={cn("aspect-square overflow-hidden bg-muted", compact && "h-32")}>
         <img
           src={product.image_url || '/placeholder.svg'}
           alt={product.name}
@@ -75,33 +79,38 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         />
       </div>
 
-      <CardContent className="p-3">
+      <CardContent className={cn("p-3", compact && "p-2")}>
         {/* Category */}
-        {product.category && (
+        {product.category && !compact && (
           <p className="text-xs text-muted-foreground mb-1">{product.category.name}</p>
         )}
 
         {/* Product Name */}
-        <h3 className="font-medium text-sm text-foreground line-clamp-2 mb-1 min-h-[2.5rem]">
+        <h3 className={cn(
+          "font-medium text-foreground line-clamp-2 mb-1",
+          compact ? "text-xs min-h-[2rem]" : "text-sm min-h-[2.5rem]"
+        )}>
           {product.name}
         </h3>
 
-        {/* Rating Placeholder */}
-        <div className="flex items-center gap-1 mb-2">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              className={cn(
-                'w-3 h-3',
-                i < 4 ? 'fill-accent text-accent' : 'text-muted'
-              )}
-            />
-          ))}
-          <span className="text-xs text-muted-foreground ml-1">(4.0)</span>
-        </div>
+        {/* Rating - hide on compact */}
+        {!compact && (
+          <div className="flex items-center gap-1 mb-2">
+            {[...Array(5)].map((_, i) => (
+              <Star
+                key={i}
+                className={cn(
+                  'w-3 h-3',
+                  i < 4 ? 'fill-accent text-accent' : 'text-muted'
+                )}
+              />
+            ))}
+            <span className="text-xs text-muted-foreground ml-1">(4.0)</span>
+          </div>
+        )}
 
-        {/* Variant Selector */}
-        {product.variants && product.variants.length > 1 && (
+        {/* Variant Selector - hide on compact */}
+        {!compact && product.variants && product.variants.length > 1 && (
           <Select
             value={selectedVariant?.id}
             onValueChange={(value) => {
@@ -123,30 +132,32 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         )}
 
         {/* Price */}
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className="text-lg font-bold text-foreground">₹{price}</span>
-          <span className="text-sm text-muted-foreground line-through">₹{originalPrice}</span>
-          <span className="text-xs text-success font-medium">15% off</span>
+        <div className={cn("flex items-baseline gap-1 mb-2", compact && "flex-wrap")}>
+          <span className={cn("font-bold text-foreground", compact ? "text-sm" : "text-lg")}>₹{price}</span>
+          <span className={cn("text-muted-foreground line-through", compact ? "text-xs" : "text-sm")}>₹{originalPrice}</span>
+          {!compact && <span className="text-xs text-success font-medium">15% off</span>}
         </div>
 
         {/* Add to Cart Button */}
         <Button
           onClick={handleAddToCart}
+          size={compact ? "sm" : "default"}
           className={cn(
-            'w-full h-9 transition-all',
+            'w-full transition-all',
+            compact && "h-8 text-xs",
             isAdded ? 'bg-success hover:bg-success' : ''
           )}
           disabled={isAdded}
         >
           {isAdded ? (
             <>
-              <Check className="w-4 h-4 mr-1 animate-checkmark" />
-              Added
+              <Check className={cn("mr-1", compact ? "w-3 h-3" : "w-4 h-4")} />
+              {compact ? "Added" : "Added"}
             </>
           ) : (
             <>
-              <Plus className="w-4 h-4 mr-1" />
-              Add to Cart
+              <Plus className={cn("mr-1", compact ? "w-3 h-3" : "w-4 h-4")} />
+              {compact ? "Add" : "Add to Cart"}
             </>
           )}
         </Button>
