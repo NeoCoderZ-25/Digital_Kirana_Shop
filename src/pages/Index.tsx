@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useProducts, useCategories, useFeaturedProducts, usePopularProducts } from '@/hooks/useProducts';
@@ -7,6 +7,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { DealBanner } from '@/components/DealBanner';
 import { CategoryPills } from '@/components/CategoryPills';
 import { ProductCard } from '@/components/ProductCard';
+import { SearchFilters, FilterState } from '@/components/SearchFilters';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sparkles, TrendingUp, Star, ShoppingBag, Package } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,15 +17,26 @@ const Index = () => {
   const { t } = useLanguage();
   const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'there';
   
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
   const [aiLoading, setAiLoading] = useState(true);
+  const [filters, setFilters] = useState<FilterState>({
+    category: null,
+    priceRange: [0, 10000],
+    rating: null,
+    sortBy: 'popularity'
+  });
   
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: featuredProducts, isLoading: featuredLoading } = useFeaturedProducts();
   const { data: popularProducts, isLoading: popularLoading } = usePopularProducts();
+
+  // Calculate max price for filter
+  const maxPrice = useMemo(() => {
+    if (!products?.length) return 10000;
+    return Math.ceil(Math.max(...products.map(p => p.price)) / 100) * 100;
+  }, [products]);
 
   // Fetch AI recommendations
   useEffect(() => {
@@ -67,14 +79,47 @@ const Index = () => {
     }
   }, [session, products]);
 
-  // Filter products based on search and category
-  const filteredProducts = products?.filter(product => {
-    const matchesSearch = !searchQuery || 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category_id === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Filter and sort products
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+
+    let filtered = products.filter(product => {
+      // Search filter
+      const matchesSearch = !searchQuery || 
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Category filter
+      const matchesCategory = !filters.category || product.category_id === filters.category;
+      
+      // Price filter
+      const price = product.price;
+      const matchesPrice = price >= filters.priceRange[0] && price <= filters.priceRange[1];
+
+      return matchesSearch && matchesCategory && matchesPrice;
+    });
+
+    // Sort products
+    switch (filters.sortBy) {
+      case 'price-low':
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-high':
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case 'newest':
+        filtered.sort((a, b) => new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime());
+        break;
+      case 'popularity':
+      default:
+        filtered.sort((a, b) => (b.order_count || 0) - (a.order_count || 0));
+        break;
+    }
+
+    return filtered;
+  }, [products, searchQuery, filters]);
+
+  const isFiltering = searchQuery || filters.category || filters.priceRange[0] > 0 || filters.priceRange[1] < maxPrice;
 
   const ProductSkeleton = () => (
     <div className="min-w-[160px] space-y-2">
@@ -99,7 +144,7 @@ const Index = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6 animate-fade-in" style={{ animationDelay: '50ms' }}>
+        <div className="mb-4 animate-fade-in" style={{ animationDelay: '50ms' }}>
           <SearchBar 
             value={searchQuery}
             onChange={setSearchQuery}
@@ -107,23 +152,37 @@ const Index = () => {
           />
         </div>
 
-        {/* Deal Banners */}
-        <div className="mb-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
-          <DealBanner />
-        </div>
-
-        {/* Category Pills */}
-        <div className="mb-8 animate-fade-in" style={{ animationDelay: '150ms' }}>
-          <CategoryPills
+        {/* Filters */}
+        <div className="mb-6 animate-fade-in" style={{ animationDelay: '75ms' }}>
+          <SearchFilters
             categories={categories || []}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            loading={categoriesLoading}
+            filters={filters}
+            onFiltersChange={setFilters}
+            maxPrice={maxPrice}
           />
         </div>
 
-        {/* AI Recommendations Section */}
-        {!searchQuery && !selectedCategory && (
+        {/* Deal Banners - hide when filtering */}
+        {!isFiltering && (
+          <div className="mb-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
+            <DealBanner />
+          </div>
+        )}
+
+        {/* Category Pills - hide when filtering */}
+        {!isFiltering && (
+          <div className="mb-8 animate-fade-in" style={{ animationDelay: '150ms' }}>
+            <CategoryPills
+              categories={categories || []}
+              selectedCategory={filters.category}
+              onSelectCategory={(cat) => setFilters({ ...filters, category: cat })}
+              loading={categoriesLoading}
+            />
+          </div>
+        )}
+
+        {/* AI Recommendations Section - hide when filtering */}
+        {!isFiltering && (
           <section className="mb-8 animate-fade-in" style={{ animationDelay: '200ms' }}>
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl">
@@ -141,7 +200,6 @@ const Index = () => {
                   </div>
                 ))
               ) : (
-                // Fallback to popular products if no AI recommendations
                 popularProducts?.slice(0, 4).map((product) => (
                   <div key={product.id} className="min-w-[160px]">
                     <ProductCard product={product} compact />
@@ -152,8 +210,8 @@ const Index = () => {
           </section>
         )}
 
-        {/* Popular Products Section */}
-        {!searchQuery && !selectedCategory && (
+        {/* Popular Products Section - hide when filtering */}
+        {!isFiltering && (
           <section className="mb-8 animate-fade-in" style={{ animationDelay: '250ms' }}>
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-xl">
@@ -175,8 +233,8 @@ const Index = () => {
           </section>
         )}
 
-        {/* Featured/Store Picks Section */}
-        {!searchQuery && !selectedCategory && (
+        {/* Featured/Store Picks Section - hide when filtering */}
+        {!isFiltering && (
           <section className="mb-8 animate-fade-in" style={{ animationDelay: '300ms' }}>
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 bg-gradient-to-br from-yellow-500/20 to-amber-500/20 rounded-xl">
@@ -209,7 +267,7 @@ const Index = () => {
               <Package className="w-5 h-5 text-primary" />
             </div>
             <h2 className="text-lg font-bold text-foreground">
-              {searchQuery || selectedCategory ? `${filteredProducts?.length || 0} ${t('items')}` : t('allProducts')}
+              {isFiltering ? `${filteredProducts.length} ${t('items')}` : t('allProducts')}
             </h2>
           </div>
           

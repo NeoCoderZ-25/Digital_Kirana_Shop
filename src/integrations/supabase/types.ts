@@ -17,26 +17,44 @@ export type Database = {
       addresses: {
         Row: {
           address: string
+          address_type: string | null
+          city: string | null
           created_at: string | null
           id: string
           is_default: boolean | null
           label: string
+          landmark: string | null
+          phone: string | null
+          pincode: string | null
+          state: string | null
           user_id: string
         }
         Insert: {
           address: string
+          address_type?: string | null
+          city?: string | null
           created_at?: string | null
           id?: string
           is_default?: boolean | null
           label?: string
+          landmark?: string | null
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
           user_id: string
         }
         Update: {
           address?: string
+          address_type?: string | null
+          city?: string | null
           created_at?: string | null
           id?: string
           is_default?: boolean | null
           label?: string
+          landmark?: string | null
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
           user_id?: string
         }
         Relationships: []
@@ -224,6 +242,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payment_qr_codes: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          qr_image_url: string | null
+          upi_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          qr_image_url?: string | null
+          upi_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          qr_image_url?: string | null
+          upi_id?: string | null
+        }
+        Relationships: []
       }
       product_variants: {
         Row: {
