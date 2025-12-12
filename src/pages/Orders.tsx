@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Package, Truck, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { ClipboardList, Package, Truck, CheckCircle, Clock, RefreshCw, ChevronRight, ShoppingBag } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
 interface Order {
   id: string;
   created_at: string;
+  updated_at: string;
   status: string;
   total_price: number;
   payment_method: string;
@@ -28,14 +30,19 @@ interface Order {
   notes: { user_note: string | null; admin_reply: string | null } | null;
 }
 
-const statusSteps = [
-  { key: 'pending', label: 'Pending', icon: Clock },
-  { key: 'processing', label: 'Processing', icon: Package },
-  { key: 'out_for_delivery', label: 'On the Way', icon: Truck },
-  { key: 'delivered', label: 'Delivered', icon: CheckCircle },
-];
+const statusConfig: Record<string, { label: string; icon: typeof Clock; color: string; bg: string }> = {
+  pending: { label: 'Order Placed', icon: Clock, color: 'text-accent', bg: 'bg-accent/20' },
+  confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'text-success', bg: 'bg-success/20' },
+  processing: { label: 'Processing', icon: Package, color: 'text-primary', bg: 'bg-primary/20' },
+  out_for_delivery: { label: 'On the Way', icon: Truck, color: 'text-primary', bg: 'bg-primary/20' },
+  delivered: { label: 'Delivered', icon: CheckCircle, color: 'text-success', bg: 'bg-success/20' },
+  cancelled: { label: 'Cancelled', icon: Clock, color: 'text-destructive', bg: 'bg-destructive/20' },
+};
+
+const statusSteps = ['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered'];
 
 const Orders = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('ongoing');
   const { user } = useAuth();
   const { addItem } = useCart();
@@ -46,6 +53,28 @@ const Orders = () => {
   useEffect(() => {
     if (user) {
       fetchOrders();
+
+      // Subscribe to real-time order updates
+      const channel = supabase
+        .channel('orders-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o));
+            toast({ title: 'Order Updated', description: `Order status changed to ${payload.new.status}` });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
@@ -75,9 +104,9 @@ const Orders = () => {
     setLoading(false);
   };
 
-  const getStatusIndex = (status: string) => {
-    const index = statusSteps.findIndex(s => s.key === status);
-    return index === -1 ? 0 : index;
+  const getStatusProgress = (status: string) => {
+    const index = statusSteps.indexOf(status);
+    return index === -1 ? 0 : ((index + 1) / statusSteps.length) * 100;
   };
 
   const handleReorder = (order: Order) => {
@@ -98,124 +127,113 @@ const Orders = () => {
   const completedOrders = orders.filter(o => ['delivered', 'cancelled'].includes(o.status));
 
   const OrderCard = ({ order }: { order: Order }) => {
-    const currentStep = getStatusIndex(order.status);
+    const status = statusConfig[order.status] || statusConfig.pending;
+    const StatusIcon = status.icon;
     const isCompleted = order.status === 'delivered';
     const isCancelled = order.status === 'cancelled';
+    const progress = getStatusProgress(order.status);
 
     return (
-      <Card className="animate-fade-in">
+      <Card 
+        className="animate-fade-in cursor-pointer hover:shadow-lg transition-shadow"
+        onClick={() => navigate(`/order/${order.id}`)}
+      >
         <CardContent className="p-4">
-          {/* Header */}
+          {/* Header with Status */}
           <div className="flex justify-between items-start mb-3">
             <div>
-              <p className="text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">
                 Order #{order.id.slice(0, 8).toUpperCase()}
               </p>
               <p className="text-xs text-muted-foreground">
-                {format(new Date(order.created_at), 'dd MMM yyyy, h:mm a')}
+                {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
               </p>
             </div>
-            <div className="text-right">
-              <p className="font-bold text-foreground">₹{order.total_price}</p>
-              <p className="text-xs text-muted-foreground capitalize">{order.payment_method}</p>
+            <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', status.bg, status.color)}>
+              <StatusIcon className="w-3 h-3" />
+              {status.label}
             </div>
           </div>
 
           {/* Items Preview */}
-          <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
-            {order.items.slice(0, 3).map((item) => (
-              <div key={item.id} className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                <img
-                  src={item.product?.image_url || '/placeholder.svg'}
-                  alt={item.product?.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
-            {order.items.length > 3 && (
-              <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                <span className="text-xs font-medium">+{order.items.length - 3}</span>
-              </div>
-            )}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex -space-x-2">
+              {order.items.slice(0, 3).map((item, i) => (
+                <div 
+                  key={item.id} 
+                  className="w-10 h-10 rounded-lg overflow-hidden bg-muted border-2 border-background"
+                  style={{ zIndex: 3 - i }}
+                >
+                  <img
+                    src={item.product?.image_url || '/placeholder.svg'}
+                    alt={item.product?.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-muted-foreground truncate">
+                {order.items.length} item{order.items.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <p className="font-bold text-foreground">₹{order.total_price.toFixed(0)}</p>
           </div>
 
-          {/* Status Progress */}
+          {/* Progress Bar for Ongoing Orders */}
           {!isCancelled && !isCompleted && (
             <div className="mb-3">
-              <div className="flex justify-between mb-2">
-                {statusSteps.map((step, index) => {
-                  const StepIcon = step.icon;
-                  const isActive = index <= currentStep;
-                  return (
-                    <div key={step.key} className="flex flex-col items-center flex-1">
-                      <div
-                        className={cn(
-                          'w-8 h-8 rounded-full flex items-center justify-center transition-all',
-                          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        <StepIcon className="w-4 h-4" />
-                      </div>
-                      <span className={cn(
-                        'text-[10px] mt-1 text-center',
-                        isActive ? 'text-primary font-medium' : 'text-muted-foreground'
-                      )}>
-                        {step.label}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                <span>Placed</span>
+                <span>Confirmed</span>
+                <span>Processing</span>
+                <span>Delivery</span>
+                <span>Done</span>
               </div>
-              <div className="h-1 bg-muted rounded-full overflow-hidden">
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-primary transition-all duration-500 animate-progress-fill"
-                  style={{ '--progress-width': `${((currentStep + 1) / statusSteps.length) * 100}%` } as React.CSSProperties}
+                  className="h-full bg-gradient-to-r from-primary to-success rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
           )}
 
-          {/* Status Badge for completed/cancelled */}
-          {(isCompleted || isCancelled) && (
-            <div className={cn(
-              'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mb-3',
-              isCompleted ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-            )}>
-              {isCompleted ? <CheckCircle className="w-3 h-3" /> : null}
-              {isCompleted ? 'Delivered' : 'Cancelled'}
+          {/* Admin Reply Indicator */}
+          {order.notes?.admin_reply && (
+            <div className="flex items-center gap-2 text-xs text-primary bg-primary/10 rounded-lg px-2 py-1.5 mb-3">
+              <ShoppingBag className="w-3 h-3" />
+              <span>Store replied to your note</span>
             </div>
           )}
 
-          {/* Notes */}
-          {order.notes && (order.notes.user_note || order.notes.admin_reply) && (
-            <div className="space-y-2 mb-3">
-              {order.notes.user_note && (
-                <div className="bg-muted/50 rounded-lg p-2 text-sm">
-                  <span className="text-muted-foreground">Your note: </span>
-                  {order.notes.user_note}
-                </div>
-              )}
-              {order.notes.admin_reply && (
-                <div className="bg-primary/10 rounded-lg p-2 text-sm">
-                  <span className="text-primary font-medium">Store reply: </span>
-                  {order.notes.admin_reply}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Reorder Button */}
-          {isCompleted && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleReorder(order)}
-              className="w-full"
+          {/* Track / Reorder Button */}
+          <div className="flex gap-2">
+            <Button 
+              variant={isCompleted ? 'outline' : 'default'}
+              size="sm" 
+              className="flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/order/${order.id}`);
+              }}
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Reorder
+              {isCompleted || isCancelled ? 'View Details' : 'Track Order'}
+              <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
-          )}
+            {isCompleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReorder(order);
+                }}
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -228,30 +246,46 @@ const Orders = () => {
       </div>
       <h2 className="text-lg font-semibold text-foreground mb-2">No orders</h2>
       <p className="text-muted-foreground text-center mb-4">{message}</p>
-      <Button asChild variant="outline">
-        <a href="/">Browse Products</a>
+      <Button onClick={() => navigate('/')} variant="outline">
+        Browse Products
       </Button>
     </div>
   );
 
   return (
     <AppLayout>
-      <div className="px-4 pt-6">
+      <div className="px-4 pt-6 pb-24">
         <h1 className="text-2xl font-bold text-foreground mb-6">My Orders</h1>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="ongoing">
-              Ongoing {ongoingOrders.length > 0 && `(${ongoingOrders.length})`}
+            <TabsTrigger value="ongoing" className="relative">
+              Ongoing
+              {ongoingOrders.length > 0 && (
+                <span className="ml-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
+                  {ongoingOrders.length}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="completed">
-              Completed {completedOrders.length > 0 && `(${completedOrders.length})`}
+              History
+              {completedOrders.length > 0 && (
+                <span className="ml-1.5 text-muted-foreground text-[10px]">
+                  ({completedOrders.length})
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="ongoing" className="space-y-4">
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              <div className="space-y-4">
+                {[1, 2].map(i => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-4 h-32" />
+                  </Card>
+                ))}
+              </div>
             ) : ongoingOrders.length === 0 ? (
               <EmptyState message="You don't have any active orders right now." />
             ) : (
@@ -261,7 +295,13 @@ const Orders = () => {
 
           <TabsContent value="completed" className="space-y-4">
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              <div className="space-y-4">
+                {[1, 2].map(i => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-4 h-32" />
+                  </Card>
+                ))}
+              </div>
             ) : completedOrders.length === 0 ? (
               <EmptyState message="Your completed orders will appear here." />
             ) : (
