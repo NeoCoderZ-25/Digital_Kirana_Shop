@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Heart, Plus, Check, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +16,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard = ({ product, compact = false }: ProductCardProps) => {
+  const navigate = useNavigate();
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
@@ -45,11 +47,23 @@ export const ProductCard = ({ product, compact = false }: ProductCardProps) => {
     toggleFavorite(product.id);
   };
 
+  const handleCardClick = () => {
+    navigate(`/product/${product.id}`);
+  };
+
+  const handleAddToCartClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleAddToCart();
+  };
+
   return (
-    <Card className={cn(
-      "group relative overflow-hidden bg-card hover:shadow-lg transition-shadow duration-300 animate-fade-in",
-      compact && "min-w-[160px]"
-    )}>
+    <Card 
+      onClick={handleCardClick}
+      className={cn(
+        "group relative overflow-hidden bg-card hover:shadow-xl transition-all duration-300 animate-fade-in cursor-pointer",
+        compact && "min-w-[160px]"
+      )}
+    >
       {/* Favorite Button */}
       <button
         onClick={handleFavoriteClick}
@@ -138,9 +152,8 @@ export const ProductCard = ({ product, compact = false }: ProductCardProps) => {
           {!compact && <span className="text-xs text-success font-medium">15% off</span>}
         </div>
 
-        {/* Add to Cart Button */}
         <Button
-          onClick={handleAddToCart}
+          onClick={handleAddToCartClick}
           size={compact ? "sm" : "default"}
           className={cn(
             'w-full transition-all',
