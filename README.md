@@ -45,7 +45,7 @@ It is an intentional, staged product build.
 > ⚠️ This is an **early UI/UX prototype**, not production-ready.
 
 🔗 **Preview URL:**  
-<a href="https://id-preview--2046d338-59a6-4b51-bb89-6392e1ff14ee.lovable.app/?__lovable_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoicVQ3QVdCZU5SemdaaVZjalo0RGFrZUgxdzB3MiIsInByb2plY3RfaWQiOiIyMDQ2ZDMzOC01OWE2LTRiNTEtYmI4OS02MzkyZTFmZjE0ZWUiLCJub25jZSI6ImQzY2ZlYjdiZDBiOTk4YzVjNDdjN2IzYTQ5YzA2NGNmIiwiaXNzIjoibG92YWJsZS1hcGkiLCJzdWIiOiIyMDQ2ZDMzOC01OWE2LTRiNTEtYmI4OS02MzkyZTFmZjE0ZWUiLCJhdWQiOlsibG92YWJsZS1hcHAiXSwiZXhwIjoxNzY2MTU1OTQzLCJuYmYiOjE3NjU1NTExNDMsImlhdCI6MTc2NTU1MTE0M30.FzK1bUJ0Wx6sEZEQnFJPUHbMc8PXZOad6Fol_ZO0h1g">Click-To-Visit-Preview</a>
+<a href="https://digital-shop-x.lovable.app">Click-To-Visit-Preview</a>
 
 Expect:
 - Incomplete flows  
@@ -53,6 +53,30 @@ Expect:
 - Temporary logic and placeholders  
 
 This preview exists only to validate **design direction and usability**.
+
+---
+
+
+🧠 Development Status
+
+Built using vibe coding with Lovable
+
+~70% User Panel completed
+
+Admin Panel not started yet
+
+Backend logic is minimal / mocked
+
+
+⏸️ Why Paused?
+
+Lovable free credits exhausted
+
+Credits renew on 01 January 2026
+
+
+Development will resume from that date.
+
 
 ---
 
