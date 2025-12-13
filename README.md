@@ -6,50 +6,72 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/User%20Panel-70%25%20Complete-brightgreen" />
-  <img src="https://img.shields.io/badge/Admin%20Panel-In%20Progress-yellow" />
+  <img src="https://img.shields.io/badge/Status-Planning%20Phase-blue" />
+  <img src="https://img.shields.io/badge/Development%20Start-01%20Jan%202026-orange" />
 </p>
 
 ---
 
 ## 🚀 What This Project Is
 
-This project helps **kirana shop owners go digital** without forcing them into
-bloated enterprise tools or overpriced SaaS platforms.
+This project aims to help **kirana shop owners go digital** without forcing them into:
+- bloated enterprise software  
+- overpriced SaaS tools  
+- complex dashboards they’ll never use  
 
-It is designed for:
-- 📱 Mobile-first usage
-- ⚡ Fast performance
-- 🧠 Zero learning curve for shop owners
+The focus is brutal simplicity.
 
-If a feature doesn’t help sell products, it doesn’t belong here.
+If a feature doesn’t **help sell products or manage orders**, it does not belong here.
 
 ---
 
-## 📊 Project Status (Read Before Judging)
+## ⏳ Project Timeline (Read This First)
 
 > ⚠️ **Important**
 >
-> - ✅ **User Panel** — ~70% complete  
-> - 🚧 **Admin Panel** — under active development
+> This project is **NOT under active development right now**.
+>
+> - 🗓️ **Official development start date:** **01 January 2026**
+> - 📌 Current codebase is an **early foundation / prototype**
+> - 📋 Features listed below represent **planned scope**, not completed work
 
-This is a real product in progress, not a fake “100% done” demo.
+This is not a fake “100% completed” demo.
+It is an intentional, staged product build.
 
 ---
 
-## ✨ Features
+## 🌐 Live Preview (Early Prototype)
+
+> ⚠️ This is an **early UI/UX prototype**, not production-ready.
+
+🔗 **Preview URL:**  
+https://munaajirangdukan-your-digital-store-psi.vercel.app/auth
+
+Expect:
+- Incomplete flows  
+- Missing admin functionality  
+- Temporary logic and placeholders  
+
+This preview exists only to validate **design direction and usability**.
+
+---
+
+## ✨ Planned Features
 
 ### 👥 User Panel
 - 📦 Product listing with categories
-- 🔍 Product detail views
+- 🔍 Product detail pages
 - 🛒 Cart & checkout flow
-- 📱 Fully responsive UI
+- 📱 Fully responsive, mobile-first UI
 
-### 🛠️ Admin Panel (In Progress)
+### 🛠️ Admin Panel
 - ➕ Add / Edit / Remove products
 - 📊 Inventory management
 - 📬 Order handling
-- ⚙️ Shop configuration
+- ⚙️ Shop configuration & settings
+
+Everything will be built for **non-technical shop owners**.
+If it needs training, it’s already a failure.
 
 ---
 
@@ -61,7 +83,12 @@ This is a real product in progress, not a fake “100% done” demo.
 - 🎨 Tailwind CSS
 - 🧩 shadcn/ui
 
-Chosen for maintainability and speed — not trends.
+Chosen for:
+- speed
+- maintainability
+- long-term scalability  
+
+Not because they’re trendy.
 
 ---
 
@@ -71,8 +98,9 @@ Chosen for maintainability and speed — not trends.
 - Node.js (LTS)
 - npm
 
-If you don’t have these, stop here.
+If you don’t have these installed, **don’t proceed**.
 
+### Setup
 ```bash
 git clone <REPO_URL>
 cd <PROJECT_NAME>
