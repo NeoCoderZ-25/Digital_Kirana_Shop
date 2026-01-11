@@ -4,7 +4,8 @@ import AppLayout from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Package, Truck, CheckCircle, Clock, RefreshCw, ChevronRight, ShoppingBag } from 'lucide-react';
+import { ClipboardList, Package, Truck, CheckCircle, Clock, RefreshCw, ChevronRight, ShoppingBag, XCircle } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { supabase } from '@/integrations/supabase/client';
@@ -123,6 +124,25 @@ const Orders = () => {
     toast({ title: 'Items added to cart', description: 'You can now proceed to checkout.' });
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', orderId)
+      .eq('user_id', user?.id);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to cancel order', variant: 'destructive' });
+    } else {
+      toast({ title: 'Order Cancelled', description: 'Your order has been cancelled successfully' });
+      fetchOrders();
+    }
+  };
+
+  const canCancelOrder = (status: string) => {
+    return ['pending', 'confirmed', 'processing'].includes(status);
+  };
+
   const ongoingOrders = orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
   const completedOrders = orders.filter(o => ['delivered', 'cancelled'].includes(o.status));
 
@@ -207,7 +227,7 @@ const Orders = () => {
             </div>
           )}
 
-          {/* Track / Reorder Button */}
+          {/* Track / Reorder / Cancel Buttons */}
           <div className="flex gap-2">
             <Button 
               variant={isCompleted ? 'outline' : 'default'}
@@ -232,6 +252,37 @@ const Orders = () => {
               >
                 <RefreshCw className="w-4 h-4" />
               </Button>
+            )}
+            {canCancelOrder(order.status) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to cancel this order? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleCancelOrder(order.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Cancel Order
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
         </CardContent>
