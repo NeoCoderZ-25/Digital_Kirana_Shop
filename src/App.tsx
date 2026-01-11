@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { useAdmin } from "@/hooks/useAdmin";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Cart from "./pages/Cart";
@@ -16,6 +17,16 @@ import ProductDetail from "./pages/ProductDetail";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import OrderTracking from "./pages/OrderTracking";
 import NotFound from "./pages/NotFound";
+
+// Admin Pages
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminOrders from "./pages/admin/Orders";
+import AdminOrderDetail from "./pages/admin/OrderDetail";
+import AdminProducts from "./pages/admin/Products";
+import AdminProductForm from "./pages/admin/ProductForm";
+import AdminCategories from "./pages/admin/Categories";
+import AdminPaymentQRCodes from "./pages/admin/PaymentQRCodes";
+import AdminCustomers from "./pages/admin/Customers";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +66,29 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
+  
+  if (authLoading || adminLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
@@ -66,6 +100,18 @@ const AppRoutes = () => (
     <Route path="/order/:id" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
     <Route path="/order-confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+    
+    {/* Admin Routes */}
+    <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+    <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
+    <Route path="/admin/orders/:id" element={<AdminRoute><AdminOrderDetail /></AdminRoute>} />
+    <Route path="/admin/products" element={<AdminRoute><AdminProducts /></AdminRoute>} />
+    <Route path="/admin/products/new" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
+    <Route path="/admin/products/:id/edit" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
+    <Route path="/admin/categories" element={<AdminRoute><AdminCategories /></AdminRoute>} />
+    <Route path="/admin/payment-qr" element={<AdminRoute><AdminPaymentQRCodes /></AdminRoute>} />
+    <Route path="/admin/customers" element={<AdminRoute><AdminCustomers /></AdminRoute>} />
+    
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
