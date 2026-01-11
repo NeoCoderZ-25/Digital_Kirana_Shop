@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,10 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Package, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Package, Plus, Trash2, Upload, ImageIcon, X, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-
 interface Category {
   id: string;
   name: string;
@@ -32,7 +31,9 @@ const AdminProductForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -198,6 +199,58 @@ const AdminProductForm = () => {
     setVariants(variants.filter((_, i) => i !== index));
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid file', description: 'Please select an image file', variant: 'destructive' });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Image must be less than 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, image_url: publicUrl });
+      toast({ title: 'Uploaded', description: 'Image uploaded successfully' });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({ title: 'Upload failed', description: 'Failed to upload image', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setFormData({ ...formData, image_url: '' });
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -285,23 +338,81 @@ const AdminProductForm = () => {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="image_url">Image URL</Label>
-                  <Input
-                    id="image_url"
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                  {formData.image_url && (
-                    <div className="mt-2 w-32 h-32 rounded-lg overflow-hidden bg-muted">
-                      <img 
-                        src={formData.image_url} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
+                  <Label>Product Image</Label>
+                  <div className="mt-2 space-y-3">
+                    {/* Image Preview */}
+                    {formData.image_url ? (
+                      <div className="relative w-full max-w-xs">
+                        <div className="aspect-square rounded-lg overflow-hidden bg-muted border">
+                          <img 
+                            src={formData.image_url} 
+                            alt="Product preview" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-8 w-8"
+                          onClick={removeImage}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div 
+                        className="w-full max-w-xs aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <ImageIcon className="w-10 h-10 text-muted-foreground/50" />
+                        <p className="text-sm text-muted-foreground">Click to upload image</p>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Image
+                          </>
+                        )}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">or</span>
                     </div>
-                  )}
+
+                    {/* URL Input */}
+                    <Input
+                      id="image_url"
+                      value={formData.image_url}
+                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                      placeholder="Paste image URL"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Max file size: 5MB. Supported formats: JPG, PNG, WebP
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
