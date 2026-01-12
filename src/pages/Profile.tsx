@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdmin } from '@/hooks/useAdmin';
 import AppLayout from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2 } from 'lucide-react';
+import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ProductCard } from '@/components/ProductCard';
@@ -24,6 +26,7 @@ interface Address {
 
 const Profile = () => {
   const { user, signOut } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const { toast } = useToast();
   const { favorites } = useFavorites();
   const [activeTab, setActiveTab] = useState('profile');
@@ -161,6 +164,26 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Admin Dashboard Card - Only visible to admins */}
+        {!adminLoading && isAdmin && (
+          <Card className="mb-6 animate-fade-in border-primary/20 bg-primary/5">
+            <CardContent className="pt-6">
+              <Link to="/admin" className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+                    <Settings className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Admin Dashboard</h3>
+                    <p className="text-sm text-muted-foreground">Manage products, orders & more</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </Link>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

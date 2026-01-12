@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Package, Plus, Trash2, Upload, ImageIcon, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { MultiImageUpload, ProductImage } from '@/components/admin/MultiImageUpload';
+
 interface Category {
   id: string;
   name: string;
@@ -31,15 +33,13 @@ const AdminProductForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [images, setImages] = useState<ProductImage[]>([]);
   
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
-    image_url: '',
     category_id: '',
     in_stock: true,
     is_featured: false
@@ -74,7 +74,6 @@ const AdminProductForm = () => {
           name: product.name,
           description: product.description || '',
           price: product.price.toString(),
-          image_url: product.image_url || '',
           category_id: product.category_id || '',
           in_stock: product.in_stock ?? true,
           is_featured: product.is_featured ?? false
@@ -94,6 +93,29 @@ const AdminProductForm = () => {
         in_stock: v.in_stock ?? true
       })) || []);
 
+      // Fetch existing images
+      const { data: imagesData } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('product_id', id)
+        .order('display_order');
+
+      if (imagesData && imagesData.length > 0) {
+        setImages(imagesData.map(img => ({
+          id: img.id,
+          image_url: img.image_url,
+          display_order: img.display_order,
+          is_primary: img.is_primary
+        })));
+      } else if (product?.image_url) {
+        // Fallback to single image from products table
+        setImages([{
+          image_url: product.image_url,
+          display_order: 0,
+          is_primary: true
+        }]);
+      }
+
     } catch (error) {
       console.error('Error fetching product:', error);
       toast({ title: 'Error', description: 'Failed to load product', variant: 'destructive' });
@@ -104,14 +126,24 @@ const AdminProductForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate minimum images
+    if (images.length < 2) {
+      toast({ title: 'Error', description: 'Please add at least 2 product images', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
 
     try {
+      // Get primary image URL for backward compatibility
+      const primaryImage = images.find(img => img.is_primary) || images[0];
+      
       const productData = {
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
-        image_url: formData.image_url || null,
+        image_url: primaryImage?.image_url || null,
         category_id: formData.category_id || null,
         in_stock: formData.in_stock,
         is_featured: formData.is_featured
@@ -137,9 +169,31 @@ const AdminProductForm = () => {
         productId = data.id;
       }
 
-      // Handle variants
+      // Handle product images
       if (productId) {
-        // Delete removed variants
+        // Delete all existing images for this product
+        await supabase
+          .from('product_images')
+          .delete()
+          .eq('product_id', productId);
+
+        // Insert all images
+        const imagesToInsert = images.map((img, index) => ({
+          product_id: productId,
+          image_url: img.image_url,
+          display_order: index,
+          is_primary: img.is_primary
+        }));
+
+        const { error: imagesError } = await supabase
+          .from('product_images')
+          .insert(imagesToInsert);
+
+        if (imagesError) {
+          console.error('Error saving images:', imagesError);
+        }
+
+        // Handle variants
         if (isEditing) {
           const existingIds = variants.filter(v => v.id).map(v => v.id);
           if (existingIds.length > 0) {
@@ -197,58 +251,6 @@ const AdminProductForm = () => {
 
   const removeVariant = (index: number) => {
     setVariants(variants.filter((_, i) => i !== index));
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Invalid file', description: 'Please select an image file', variant: 'destructive' });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'File too large', description: 'Image must be less than 5MB', variant: 'destructive' });
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      setFormData({ ...formData, image_url: publicUrl });
-      toast({ title: 'Uploaded', description: 'Image uploaded successfully' });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({ title: 'Upload failed', description: 'Failed to upload image', variant: 'destructive' });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const removeImage = () => {
-    setFormData({ ...formData, image_url: '' });
   };
 
   if (loading) {
@@ -337,85 +339,16 @@ const AdminProductForm = () => {
                     </Select>
                   </div>
                 </div>
-                <div>
-                  <Label>Product Image</Label>
-                  <div className="mt-2 space-y-3">
-                    {/* Image Preview */}
-                    {formData.image_url ? (
-                      <div className="relative w-full max-w-xs">
-                        <div className="aspect-square rounded-lg overflow-hidden bg-muted border">
-                          <img 
-                            src={formData.image_url} 
-                            alt="Product preview" 
-                            className="w-full h-full object-cover"
-                            onError={(e) => (e.currentTarget.src = '/placeholder.svg')}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-2 right-2 h-8 w-8"
-                          onClick={removeImage}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div 
-                        className="w-full max-w-xs aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <ImageIcon className="w-10 h-10 text-muted-foreground/50" />
-                        <p className="text-sm text-muted-foreground">Click to upload image</p>
-                      </div>
-                    )}
-
-                    {/* Upload Button */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                      >
-                        {uploading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Image
-                          </>
-                        )}
-                      </Button>
-                      <span className="text-xs text-muted-foreground">or</span>
-                    </div>
-
-                    {/* URL Input */}
-                    <Input
-                      id="image_url"
-                      value={formData.image_url}
-                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                      placeholder="Paste image URL"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Max file size: 5MB. Supported formats: JPG, PNG, WebP
-                    </p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
+
+            {/* Multi-Image Upload */}
+            <MultiImageUpload
+              productId={isEditing ? id : undefined}
+              images={images}
+              onChange={setImages}
+              minImages={2}
+            />
 
             {/* Variants */}
             <Card>
@@ -505,10 +438,16 @@ const AdminProductForm = () => {
               </CardContent>
             </Card>
 
-            <Button type="submit" className="w-full" disabled={saving}>
+            <Button type="submit" className="w-full" disabled={saving || images.length < 2}>
               <Save className="w-4 h-4 mr-2" />
               {saving ? 'Saving...' : 'Save Product'}
             </Button>
+            
+            {images.length < 2 && (
+              <p className="text-xs text-destructive text-center">
+                Add at least 2 images to save
+              </p>
+            )}
           </div>
         </form>
       </div>
