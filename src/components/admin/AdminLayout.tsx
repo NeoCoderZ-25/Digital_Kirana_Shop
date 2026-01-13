@@ -24,14 +24,18 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
+import { Star, Tag, Award } from 'lucide-react';
+
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: ShoppingCart, label: 'Orders', path: '/admin/orders' },
   { icon: Package, label: 'Products', path: '/admin/products' },
   { icon: FolderOpen, label: 'Categories', path: '/admin/categories' },
+  { icon: Star, label: 'Reviews', path: '/admin/reviews' },
+  { icon: Tag, label: 'Coupons', path: '/admin/coupons' },
+  { icon: Award, label: 'Loyalty', path: '/admin/loyalty' },
   { icon: QrCode, label: 'Payment QR', path: '/admin/payment-qr' },
   { icon: Users, label: 'Customers', path: '/admin/customers' },
-  { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];
 
 const Sidebar = ({ className }: { className?: string }) => {

@@ -16,6 +16,7 @@ import { Product } from '@/hooks/useProducts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import LoyaltyCard from '@/components/LoyaltyCard';
 
 interface Address {
   id: string;
@@ -184,6 +185,11 @@ const Profile = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Loyalty Card */}
+        <div className="mb-6">
+          <LoyaltyCard />
+        </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

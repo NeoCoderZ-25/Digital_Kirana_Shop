@@ -27,6 +27,10 @@ import AdminProductForm from "./pages/admin/ProductForm";
 import AdminCategories from "./pages/admin/Categories";
 import AdminPaymentQRCodes from "./pages/admin/PaymentQRCodes";
 import AdminCustomers from "./pages/admin/Customers";
+import AdminReviews from "./pages/admin/Reviews";
+import AdminCoupons from "./pages/admin/Coupons";
+import AdminCouponForm from "./pages/admin/CouponForm";
+import AdminLoyalty from "./pages/admin/Loyalty";
 
 const queryClient = new QueryClient();
 
@@ -111,6 +115,11 @@ const AppRoutes = () => (
     <Route path="/admin/categories" element={<AdminRoute><AdminCategories /></AdminRoute>} />
     <Route path="/admin/payment-qr" element={<AdminRoute><AdminPaymentQRCodes /></AdminRoute>} />
     <Route path="/admin/customers" element={<AdminRoute><AdminCustomers /></AdminRoute>} />
+    <Route path="/admin/reviews" element={<AdminRoute><AdminReviews /></AdminRoute>} />
+    <Route path="/admin/coupons" element={<AdminRoute><AdminCoupons /></AdminRoute>} />
+    <Route path="/admin/coupons/new" element={<AdminRoute><AdminCouponForm /></AdminRoute>} />
+    <Route path="/admin/coupons/:id/edit" element={<AdminRoute><AdminCouponForm /></AdminRoute>} />
+    <Route path="/admin/loyalty" element={<AdminRoute><AdminLoyalty /></AdminRoute>} />
     
     <Route path="*" element={<NotFound />} />
   </Routes>
