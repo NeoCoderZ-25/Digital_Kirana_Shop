@@ -12,11 +12,24 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { 
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from '@/components/ui/carousel';
+import { 
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, 
   Shield, RotateCcw, Plus, Minus, Check, ChevronRight 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+
+interface ProductImage {
+  id: string;
+  product_id: string;
+  image_url: string;
+  display_order: number;
+  is_primary: boolean;
+}
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,12 +40,14 @@ const ProductDetail = () => {
   const { toast } = useToast();
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [carouselApi, setCarouselApi] = useState<any>(null);
 
   const favorite = product ? isFavorite(product.id) : false;
   const price = product ? product.price + (selectedVariant?.extra_price || 0) : 0;
@@ -44,6 +59,7 @@ const ProductDetail = () => {
       if (!id) return;
       setLoading(true);
 
+      // Fetch product with variants
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -58,6 +74,17 @@ const ProductDetail = () => {
         setProduct(data as Product);
         if (data.variants && data.variants.length > 0) {
           setSelectedVariant(data.variants[0]);
+        }
+
+        // Fetch product images
+        const { data: images } = await supabase
+          .from('product_images')
+          .select('*')
+          .eq('product_id', id)
+          .order('display_order', { ascending: true });
+
+        if (images && images.length > 0) {
+          setProductImages(images);
         }
 
         // Fetch related products
@@ -78,6 +105,27 @@ const ProductDetail = () => {
 
     fetchProduct();
   }, [id]);
+
+  // Sync carousel with selected image
+  useEffect(() => {
+    if (carouselApi) {
+      carouselApi.scrollTo(selectedImage);
+    }
+  }, [selectedImage, carouselApi]);
+
+  // Update selected image when carousel scrolls
+  useEffect(() => {
+    if (!carouselApi) return;
+
+    const onSelect = () => {
+      setSelectedImage(carouselApi.selectedScrollSnap());
+    };
+
+    carouselApi.on('select', onSelect);
+    return () => {
+      carouselApi.off('select', onSelect);
+    };
+  }, [carouselApi]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -146,8 +194,10 @@ const ProductDetail = () => {
     );
   }
 
-  // Mock multiple images for demo
-  const images = [product.image_url, product.image_url, product.image_url].filter(Boolean);
+  // Use product images from database, fallback to main image
+  const images = productImages.length > 0 
+    ? productImages.map(img => img.image_url)
+    : [product.image_url].filter(Boolean);
 
   return (
     <AppLayout>
@@ -184,34 +234,72 @@ const ProductDetail = () => {
 
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 px-4 pt-4">
-            {/* Image Gallery */}
+            {/* Image Gallery with Carousel */}
             <div className="space-y-4">
-              <div className="relative aspect-square bg-muted rounded-2xl overflow-hidden">
-                <img
-                  src={images[selectedImage] || '/placeholder.svg'}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative">
+                <Carousel 
+                  className="w-full"
+                  setApi={setCarouselApi}
+                  opts={{
+                    loop: images.length > 1,
+                    align: 'start',
+                  }}
+                >
+                  <CarouselContent>
+                    {images.map((img, idx) => (
+                      <CarouselItem key={idx}>
+                        <div className="relative aspect-square bg-muted rounded-2xl overflow-hidden">
+                          <img
+                            src={img || '/placeholder.svg'}
+                            alt={`${product.name} - Image ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                </Carousel>
+
+                {/* Badges */}
                 {product.is_featured && (
-                  <Badge className="absolute top-4 left-4 bg-accent text-accent-foreground">
+                  <Badge className="absolute top-4 left-4 z-10 bg-accent text-accent-foreground">
                     Featured
                   </Badge>
                 )}
-                <Badge className="absolute top-4 right-4 bg-success text-success-foreground">
+                <Badge className="absolute top-4 right-4 z-10 bg-success text-success-foreground">
                   {discount}% OFF
                 </Badge>
+
+                {/* Image Indicators */}
+                {images.length > 1 && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                    {images.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedImage(idx)}
+                        className={cn(
+                          "w-2 h-2 rounded-full transition-all",
+                          selectedImage === idx 
+                            ? "bg-primary w-6" 
+                            : "bg-background/70 hover:bg-background"
+                        )}
+                        aria-label={`Go to image ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Thumbnail Strip */}
               {images.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                   {images.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedImage(idx)}
                       className={cn(
                         "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all",
-                        selectedImage === idx ? "border-primary" : "border-transparent"
+                        selectedImage === idx ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/50"
                       )}
                     >
                       <img src={img || ''} alt="" className="w-full h-full object-cover" />
