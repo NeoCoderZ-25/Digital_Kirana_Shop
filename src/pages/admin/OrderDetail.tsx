@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,13 +20,17 @@ import {
   Send,
   User,
   CreditCard,
-  Calendar
+  Calendar,
+  Printer,
+  PackageCheck
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import InvoicePrint from '@/components/admin/InvoicePrint';
+import { useReactToPrint } from 'react-to-print';
 
 interface OrderDetail {
   id: string;
@@ -69,6 +73,7 @@ const statusOptions = [
   { value: 'pending', label: 'Pending', icon: Clock, color: 'text-accent', bg: 'bg-accent' },
   { value: 'confirmed', label: 'Confirmed', icon: CheckCircle, color: 'text-success', bg: 'bg-success' },
   { value: 'processing', label: 'Processing', icon: Package, color: 'text-primary', bg: 'bg-primary' },
+  { value: 'packed', label: 'Packed', icon: PackageCheck, color: 'text-primary', bg: 'bg-primary' },
   { value: 'out_for_delivery', label: 'Out for Delivery', icon: Truck, color: 'text-primary', bg: 'bg-primary' },
   { value: 'delivered', label: 'Delivered', icon: CheckCircle, color: 'text-success', bg: 'bg-success' },
   { value: 'cancelled', label: 'Cancelled', icon: XCircle, color: 'text-destructive', bg: 'bg-destructive' },
@@ -92,6 +97,12 @@ const AdminOrderDetail = () => {
   const [updating, setUpdating] = useState(false);
   const [adminReply, setAdminReply] = useState('');
   const [statusNote, setStatusNote] = useState('');
+  const invoiceRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: invoiceRef,
+    documentTitle: `Invoice-${order?.id?.slice(0, 8).toUpperCase() || 'order'}`,
+  });
 
   useEffect(() => {
     if (id) {
@@ -256,6 +267,7 @@ const AdminOrderDetail = () => {
       case 'pending': return 'bg-accent/20 text-accent';
       case 'confirmed': return 'bg-success/20 text-success';
       case 'processing': return 'bg-primary/20 text-primary';
+      case 'packed': return 'bg-primary/20 text-primary';
       case 'out_for_delivery': return 'bg-primary/20 text-primary';
       case 'delivered': return 'bg-success/20 text-success';
       case 'cancelled': return 'bg-destructive/20 text-destructive';
@@ -315,6 +327,15 @@ const AdminOrderDetail = () => {
               </p>
             </div>
           </div>
+          <Button variant="outline" onClick={() => handlePrint()}>
+            <Printer className="w-4 h-4 mr-2" />
+            Print Invoice
+          </Button>
+        </div>
+
+        {/* Hidden Invoice for Print */}
+        <div style={{ display: 'none' }}>
+          <InvoicePrint ref={invoiceRef} order={order} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

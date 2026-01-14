@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useCart } from '@/hooks/useCart';
 import { useFavorites } from '@/hooks/useFavorites';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, ProductVariant } from '@/hooks/useProducts';
 import AppLayout from '@/components/layout/AppLayout';
@@ -18,11 +19,12 @@ import {
 } from '@/components/ui/carousel';
 import { 
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, 
-  Shield, RotateCcw, Plus, Minus, Check, ChevronRight 
+  Shield, RotateCcw, Plus, Minus, Check, ChevronRight, BadgeCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-
+import ImageZoom from '@/components/ImageZoom';
+import ReviewForm from '@/components/ReviewForm';
 interface ProductImage {
   id: string;
   product_id: string;
@@ -31,28 +33,100 @@ interface ProductImage {
   is_primary: boolean;
 }
 
+interface Review {
+  id: string;
+  user_id: string;
+  rating: number;
+  comment: string | null;
+  is_verified_purchase: boolean | null;
+  created_at: string;
+  profile?: { username: string } | null;
+  images?: { id: string; image_url: string }[];
+}
+
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
   const [carouselApi, setCarouselApi] = useState<any>(null);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
 
   const favorite = product ? isFavorite(product.id) : false;
   const price = product ? product.price + (selectedVariant?.extra_price || 0) : 0;
   const originalPrice = Math.round(price * 1.15);
   const discount = 15;
+  
+  // Calculate average rating
+  const avgRating = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : '0';
+  
+  // Rating distribution
+  const ratingDistribution = [5, 4, 3, 2, 1].map(rating => ({
+    rating,
+    count: reviews.filter(r => r.rating === rating).length,
+    percentage: reviews.length > 0 
+      ? (reviews.filter(r => r.rating === rating).length / reviews.length) * 100 
+      : 0
+  }));
+
+  const fetchReviews = async () => {
+    if (!id) return;
+    
+    const { data } = await supabase
+      .from('reviews')
+      .select(`
+        *,
+        images:review_images(id, image_url)
+      `)
+      .eq('product_id', id)
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false });
+    
+    if (data) {
+      // Fetch profiles separately
+      const userIds = [...new Set(data.map(r => r.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, username')
+        .in('user_id', userIds);
+      
+      const reviewsWithProfiles = data.map(review => ({
+        ...review,
+        profile: profiles?.find(p => p.user_id === review.user_id) || null
+      }));
+      
+      setReviews(reviewsWithProfiles);
+    }
+  };
+
+  const checkPurchaseStatus = async () => {
+    if (!id || !user) return;
+    
+    const { count } = await supabase
+      .from('order_items')
+      .select('*, order:orders!inner(*)', { count: 'exact', head: true })
+      .eq('product_id', id)
+      .eq('order.user_id', user.id)
+      .eq('order.status', 'delivered');
+    
+    setHasPurchased((count || 0) > 0);
+  };
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -104,7 +178,12 @@ const ProductDetail = () => {
     };
 
     fetchProduct();
+    fetchReviews();
   }, [id]);
+
+  useEffect(() => {
+    checkPurchaseStatus();
+  }, [id, user]);
 
   // Sync carousel with selected image
   useEffect(() => {
@@ -248,13 +327,19 @@ const ProductDetail = () => {
                   <CarouselContent>
                     {images.map((img, idx) => (
                       <CarouselItem key={idx}>
-                        <div className="relative aspect-square bg-muted rounded-2xl overflow-hidden">
-                          <img
-                            src={img || '/placeholder.svg'}
-                            alt={`${product.name} - Image ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                        <ImageZoom 
+                          src={img || '/placeholder.svg'} 
+                          alt={`${product.name} - Image ${idx + 1}`}
+                          className="w-full"
+                        >
+                          <div className="relative aspect-square bg-muted rounded-2xl overflow-hidden">
+                            <img
+                              src={img || '/placeholder.svg'}
+                              alt={`${product.name} - Image ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </ImageZoom>
                       </CarouselItem>
                     ))}
                   </CarouselContent>
@@ -323,10 +408,10 @@ const ProductDetail = () => {
                 {/* Ratings */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 bg-success/10 text-success px-2 py-1 rounded">
-                    <span className="font-bold text-sm">4.2</span>
+                    <span className="font-bold text-sm">{avgRating}</span>
                     <Star className="w-3 h-3 fill-current" />
                   </div>
-                  <span className="text-sm text-muted-foreground">1,234 ratings</span>
+                  <span className="text-sm text-muted-foreground">{reviews.length} ratings</span>
                 </div>
               </div>
 
@@ -421,38 +506,57 @@ const ProductDetail = () => {
             <Separator className="mb-8" />
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Reviews & Ratings</h2>
-              <button className="text-primary text-sm font-medium flex items-center gap-1">
-                See All <ChevronRight className="w-4 h-4" />
-              </button>
+              {user && hasPurchased && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowReviewForm(!showReviewForm)}
+                >
+                  {showReviewForm ? 'Cancel' : 'Write Review'}
+                </Button>
+              )}
             </div>
+
+            {/* Review Form */}
+            {showReviewForm && user && (
+              <div className="mb-6">
+                <ReviewForm 
+                  productId={id!} 
+                  onReviewSubmitted={() => {
+                    setShowReviewForm(false);
+                    fetchReviews();
+                  }} 
+                />
+              </div>
+            )}
 
             {/* Rating Summary */}
             <div className="bg-card border border-border rounded-2xl p-6 mb-6">
               <div className="flex items-center gap-6">
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-foreground">4.2</div>
+                  <div className="text-4xl font-bold text-foreground">{avgRating}</div>
                   <div className="flex items-center justify-center gap-1 my-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
                         className={cn(
                           "w-4 h-4",
-                          star <= 4 ? "fill-accent text-accent" : "text-muted"
+                          star <= Math.round(Number(avgRating)) ? "fill-accent text-accent" : "text-muted"
                         )}
                       />
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">1,234 reviews</p>
+                  <p className="text-xs text-muted-foreground">{reviews.length} reviews</p>
                 </div>
                 <div className="flex-1 space-y-2">
-                  {[5, 4, 3, 2, 1].map((rating) => (
+                  {ratingDistribution.map(({ rating, percentage }) => (
                     <div key={rating} className="flex items-center gap-2">
                       <span className="text-sm w-3">{rating}</span>
                       <Star className="w-3 h-3 fill-accent text-accent" />
                       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-accent rounded-full"
-                          style={{ width: `${[70, 20, 5, 3, 2][5 - rating]}%` }}
+                          style={{ width: `${percentage}%` }}
                         />
                       </div>
                     </div>
@@ -461,37 +565,63 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Sample Reviews */}
+            {/* Real Reviews */}
             <div className="space-y-4">
-              {[
-                { name: "Rahul S.", rating: 5, comment: "Excellent product! Exactly as described. Fast delivery.", date: "2 days ago" },
-                { name: "Priya M.", rating: 4, comment: "Good quality, value for money. Would recommend.", date: "1 week ago" },
-                { name: "Amit K.", rating: 4, comment: "Nice product. Packaging was great.", date: "2 weeks ago" },
-              ].map((review, idx) => (
-                <div key={idx} className="bg-card border border-border rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold text-sm">
-                        {review.name[0]}
-                      </div>
-                      <span className="font-medium text-sm">{review.name}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{review.date}</span>
-                  </div>
-                  <div className="flex items-center gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={cn(
-                          "w-3 h-3",
-                          i < review.rating ? "fill-accent text-accent" : "text-muted"
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{review.comment}</p>
+              {reviews.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No reviews yet. Be the first to review this product!</p>
                 </div>
-              ))}
+              ) : (
+                reviews.slice(0, 5).map((review) => (
+                  <div key={review.id} className="bg-card border border-border rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold text-sm">
+                          {review.profile?.username?.[0] || 'U'}
+                        </div>
+                        <span className="font-medium text-sm">{review.profile?.username || 'User'}</span>
+                        {review.is_verified_purchase && (
+                          <Badge variant="outline" className="text-xs flex items-center gap-1 text-success border-success/50">
+                            <BadgeCheck className="w-3 h-3" />
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(review.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 mb-2">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={cn(
+                            "w-3 h-3",
+                            i < review.rating ? "fill-accent text-accent" : "text-muted"
+                          )}
+                        />
+                      ))}
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
+                    )}
+                    {/* Review Images */}
+                    {review.images && review.images.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        {review.images.map((img) => (
+                          <ImageZoom key={img.id} src={img.image_url} alt="Review image" className="w-16 h-16">
+                            <img 
+                              src={img.image_url} 
+                              alt="Review" 
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          </ImageZoom>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

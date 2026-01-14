@@ -14,9 +14,20 @@ import { cn } from '@/lib/utils';
 import { AddressForm, AddressFormData } from '@/components/AddressForm';
 import { AddressCard, Address } from '@/components/AddressCard';
 import { PaymentQRCode } from '@/components/PaymentQRCode';
+import CouponInput from '@/components/CouponInput';
 
 type PaymentMethod = 'cod' | 'qr';
 type CheckoutStep = 'address' | 'payment' | 'review';
+
+interface CouponData {
+  id: string;
+  code: string;
+  description: string | null;
+  discount_type: string;
+  discount_value: number;
+  min_order_amount: number | null;
+  max_discount: number | null;
+}
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -32,9 +43,18 @@ const Checkout = () => {
   const [addingAddress, setAddingAddress] = useState(false);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('address');
   const [showQRPayment, setShowQRPayment] = useState(false);
+  
+  // Coupon state
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
 
   const deliveryCharge = totalPrice >= 499 ? 0 : 40;
-  const finalTotal = totalPrice + deliveryCharge;
+  const finalTotal = totalPrice + deliveryCharge - couponDiscount;
+
+  const handleCouponApplied = (coupon: CouponData | null, discountAmount: number) => {
+    setAppliedCoupon(coupon);
+    setCouponDiscount(discountAmount);
+  };
 
   useEffect(() => {
     if (user) {
@@ -139,6 +159,8 @@ const Checkout = () => {
           payment_method: paymentMethod === 'qr' ? 'online' : 'cod',
           payment_status: paymentMethod === 'qr' ? 'pending_verification' : 'pending',
           status: 'pending',
+          coupon_id: appliedCoupon?.id || null,
+          coupon_discount: couponDiscount,
         })
         .select()
         .single();
@@ -158,6 +180,22 @@ const Checkout = () => {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Record coupon usage
+      if (appliedCoupon) {
+        await supabase.from('coupon_usage').insert({
+          coupon_id: appliedCoupon.id,
+          user_id: user?.id,
+          order_id: order.id,
+          discount_amount: couponDiscount,
+        });
+        
+        // Increment used_count
+        await supabase
+          .from('coupons')
+          .update({ used_count: (appliedCoupon as any).used_count + 1 })
+          .eq('id', appliedCoupon.id);
+      }
 
       if (orderNote.trim()) {
         await supabase
@@ -330,6 +368,15 @@ const Checkout = () => {
               </div>
             </RadioGroup>
 
+            {/* Coupon Input */}
+            <div className="mt-6">
+              <CouponInput 
+                orderTotal={totalPrice} 
+                onCouponApplied={handleCouponApplied}
+                appliedCoupon={appliedCoupon}
+              />
+            </div>
+
             {/* Security Badge */}
             <div className="flex items-center gap-2 mt-6 p-3 bg-success/10 rounded-lg">
               <Shield className="w-5 h-5 text-success" />
@@ -434,6 +481,12 @@ const Checkout = () => {
                     {deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}
                   </span>
                 </div>
+                {couponDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-success">
+                    <span>Coupon Discount</span>
+                    <span>-₹{couponDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="border-t border-border pt-2 flex justify-between font-bold text-lg">
                   <span>Total</span>
                   <span>₹{finalTotal.toFixed(2)}</span>
