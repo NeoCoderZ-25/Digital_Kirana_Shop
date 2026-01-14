@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
+import {
   Search, 
   Plus,
   Package,
@@ -25,11 +25,14 @@ import {
   Trash2,
   Star,
   Grid,
-  List
+  List,
+  Download,
+  Upload
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import BulkProductImport from '@/components/admin/BulkProductImport';
 
 interface Product {
   id: string;
@@ -58,6 +61,37 @@ const AdminProducts = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
+  const handleExportCSV = () => {
+    const headers = ['name', 'description', 'price', 'category', 'in_stock', 'is_featured', 'image_url'];
+    const csvRows = [headers.join(',')];
+    
+    products.forEach(product => {
+      const row = [
+        `"${(product.name || '').replace(/"/g, '""')}"`,
+        `"${(product.description || '').replace(/"/g, '""')}"`,
+        product.price,
+        `"${product.category?.name || ''}"`,
+        product.in_stock ? 'true' : 'false',
+        product.is_featured ? 'true' : 'false',
+        `"${product.image_url || ''}"`
+      ];
+      csvRows.push(row.join(','));
+    });
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `products_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({ title: 'Exported', description: `${products.length} products exported to CSV` });
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -173,10 +207,20 @@ const AdminProducts = () => {
             <h1 className="text-2xl font-bold text-foreground">Products</h1>
             <p className="text-muted-foreground">Manage your product catalog</p>
           </div>
-          <Button onClick={() => navigate('/admin/products/new')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import CSV
+            </Button>
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button onClick={() => navigate('/admin/products/new')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -370,6 +414,16 @@ const AdminProducts = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Dialog */}
+      <BulkProductImport 
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={() => {
+          setShowImportDialog(false);
+          fetchProducts();
+        }}
+      />
     </AdminLayout>
   );
 };
