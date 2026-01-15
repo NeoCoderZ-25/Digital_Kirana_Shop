@@ -24,6 +24,8 @@ export type Database = {
           is_default: boolean | null
           label: string
           landmark: string | null
+          latitude: number | null
+          longitude: number | null
           phone: string | null
           pincode: string | null
           state: string | null
@@ -38,6 +40,8 @@ export type Database = {
           is_default?: boolean | null
           label?: string
           landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
           phone?: string | null
           pincode?: string | null
           state?: string | null
@@ -52,6 +56,8 @@ export type Database = {
           is_default?: boolean | null
           label?: string
           landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
           phone?: string | null
           pincode?: string | null
           state?: string | null
@@ -431,10 +437,14 @@ export type Database = {
       orders: {
         Row: {
           address_id: string | null
+          assigned_delivery_boy: string | null
           cancel_reason: string | null
           coupon_discount: number | null
           coupon_id: string | null
           created_at: string | null
+          delivered_at: string | null
+          delivery_accepted_at: string | null
+          delivery_started_at: string | null
           id: string
           payment_method: string
           payment_status: string
@@ -449,10 +459,14 @@ export type Database = {
         }
         Insert: {
           address_id?: string | null
+          assigned_delivery_boy?: string | null
           cancel_reason?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
           created_at?: string | null
+          delivered_at?: string | null
+          delivery_accepted_at?: string | null
+          delivery_started_at?: string | null
           id?: string
           payment_method?: string
           payment_status?: string
@@ -467,10 +481,14 @@ export type Database = {
         }
         Update: {
           address_id?: string | null
+          assigned_delivery_boy?: string | null
           cancel_reason?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
           created_at?: string | null
+          delivered_at?: string | null
+          delivery_accepted_at?: string | null
+          delivery_started_at?: string | null
           id?: string
           payment_method?: string
           payment_status?: string
@@ -785,7 +803,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "delivery_boy"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -913,7 +931,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "delivery_boy"],
     },
   },
 } as const
