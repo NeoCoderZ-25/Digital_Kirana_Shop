@@ -42,6 +42,7 @@ interface OrderDetail {
   payment_status: string;
   scheduled_delivery: string | null;
   user_id: string;
+  assigned_delivery_boy: string | null;
   address: {
     label: string;
     address: string;
@@ -60,6 +61,13 @@ interface OrderDetail {
     variant: { name: string } | null;
   }>;
   notes: { id: string; user_note: string | null; admin_reply: string | null } | null;
+}
+
+interface DeliveryBoy {
+  user_id: string;
+  username: string;
+  email: string;
+  phone: string | null;
 }
 
 interface StatusHistory {
@@ -93,6 +101,7 @@ const AdminOrderDetail = () => {
   const { user } = useAuth();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
+  const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [adminReply, setAdminReply] = useState('');
@@ -108,6 +117,7 @@ const AdminOrderDetail = () => {
     if (id) {
       fetchOrder();
       fetchStatusHistory();
+      fetchDeliveryBoys();
     }
   }, [id]);
 
@@ -116,7 +126,7 @@ const AdminOrderDetail = () => {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id, created_at, updated_at, status, total_price, payment_method, payment_status, scheduled_delivery, user_id,
+          id, created_at, updated_at, status, total_price, payment_method, payment_status, scheduled_delivery, user_id, assigned_delivery_boy,
           address:addresses(label, address, phone, city, state, pincode, landmark),
           items:order_items(
             id, quantity, price,
@@ -165,6 +175,63 @@ const AdminOrderDetail = () => {
       setStatusHistory(data || []);
     } catch (error) {
       console.error('Error fetching status history:', error);
+    }
+  };
+
+  const fetchDeliveryBoys = async () => {
+    try {
+      // Get all users with delivery_boy role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'delivery_boy');
+
+      if (roleError) throw roleError;
+
+      if (roleData && roleData.length > 0) {
+        const userIds = roleData.map(r => r.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, username, email, phone')
+          .in('user_id', userIds);
+
+        if (profilesError) throw profilesError;
+        setDeliveryBoys(profilesData || []);
+      }
+    } catch (error) {
+      console.error('Error fetching delivery boys:', error);
+    }
+  };
+
+  const handleAssignDeliveryBoy = async (deliveryBoyId: string | null) => {
+    if (!order) return;
+    setUpdating(true);
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          assigned_delivery_boy: deliveryBoyId === 'unassign' ? null : deliveryBoyId,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      setOrder({ ...order, assigned_delivery_boy: deliveryBoyId === 'unassign' ? null : deliveryBoyId });
+      
+      const deliveryBoy = deliveryBoys.find(db => db.user_id === deliveryBoyId);
+      toast({ 
+        title: deliveryBoyId === 'unassign' ? 'Delivery Boy Unassigned' : 'Delivery Boy Assigned', 
+        description: deliveryBoyId === 'unassign' 
+          ? 'Order has been unassigned' 
+          : `Order assigned to ${deliveryBoy?.username || 'delivery personnel'}` 
+      });
+    } catch (error) {
+      console.error('Error assigning delivery boy:', error);
+      toast({ title: 'Error', description: 'Failed to assign delivery boy', variant: 'destructive' });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -347,7 +414,7 @@ const AdminOrderDetail = () => {
                 <CardTitle className="text-lg">Order Status</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-sm font-medium text-foreground mb-2 block">Order Status</label>
                     <Select value={order.status} onValueChange={handleStatusChange} disabled={updating}>
@@ -378,6 +445,42 @@ const AdminOrderDetail = () => {
                             {status.label}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4" />
+                        Assign Delivery Boy
+                      </div>
+                    </label>
+                    <Select 
+                      value={order.assigned_delivery_boy || 'unassigned'} 
+                      onValueChange={(value) => handleAssignDeliveryBoy(value === 'unassigned' ? 'unassign' : value)} 
+                      disabled={updating}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select delivery boy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">
+                          <span className="text-muted-foreground">Unassigned</span>
+                        </SelectItem>
+                        {deliveryBoys.map((db) => (
+                          <SelectItem key={db.user_id} value={db.user_id}>
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-primary" />
+                              <span>{db.username}</span>
+                              {db.phone && <span className="text-muted-foreground text-xs">({db.phone})</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {deliveryBoys.length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            No delivery personnel available
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
