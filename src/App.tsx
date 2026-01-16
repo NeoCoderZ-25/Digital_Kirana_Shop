@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useDeliveryBoy } from "@/hooks/useDeliveryBoy";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Cart from "./pages/Cart";
@@ -31,6 +32,10 @@ import AdminReviews from "./pages/admin/Reviews";
 import AdminCoupons from "./pages/admin/Coupons";
 import AdminCouponForm from "./pages/admin/CouponForm";
 import AdminLoyalty from "./pages/admin/Loyalty";
+
+// Delivery Pages
+import DeliveryDashboard from "./pages/delivery/Dashboard";
+import DeliveryOrderDetail from "./pages/delivery/OrderDetail";
 
 const queryClient = new QueryClient();
 
@@ -93,6 +98,29 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const DeliveryRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading } = useAuth();
+  const { isDeliveryBoy, loading: deliveryLoading } = useDeliveryBoy();
+  
+  if (authLoading || deliveryLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  if (!isDeliveryBoy) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
@@ -104,6 +132,10 @@ const AppRoutes = () => (
     <Route path="/order/:id" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
     <Route path="/order-confirmation" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+    
+    {/* Delivery Routes */}
+    <Route path="/delivery" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
+    <Route path="/delivery/order/:id" element={<DeliveryRoute><DeliveryOrderDetail /></DeliveryRoute>} />
     
     {/* Admin Routes */}
     <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />

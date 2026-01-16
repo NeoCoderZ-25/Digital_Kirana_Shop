@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Home, Briefcase, MapPin, Loader2 } from 'lucide-react';
+import { Home, Briefcase, MapPin, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { geocodeAddress, GeocodingResult } from '@/services/geocoding';
+import AddressMap from '@/components/AddressMap';
 
 export interface AddressFormData {
   label: string;
@@ -14,6 +16,8 @@ export interface AddressFormData {
   state: string;
   landmark: string;
   address_type: 'home' | 'work' | 'other';
+  latitude?: number;
+  longitude?: number;
 }
 
 interface AddressFormProps {
@@ -40,6 +44,9 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
     address_type: 'home'
   });
   const [errors, setErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({});
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeResult, setGeocodeResult] = useState<GeocodingResult | null>(null);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
   const validate = () => {
     const newErrors: Partial<Record<keyof AddressFormData, string>> = {};
@@ -58,7 +65,11 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
 
   const handleSubmit = async () => {
     if (validate()) {
-      await onSubmit(formData);
+      await onSubmit({
+        ...formData,
+        latitude: geocodeResult?.latitude,
+        longitude: geocodeResult?.longitude,
+      });
     }
   };
 
@@ -82,6 +93,34 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
         console.log('Failed to fetch pincode data');
       }
     }
+  };
+
+  const handleVerifyLocation = async () => {
+    if (!formData.address || !formData.city || !formData.state) {
+      setGeocodeError('Please fill in address, city, and state first');
+      return;
+    }
+
+    setGeocoding(true);
+    setGeocodeError(null);
+
+    const fullAddress = `${formData.address}, ${formData.landmark ? formData.landmark + ', ' : ''}${formData.city}, ${formData.state}, ${formData.pincode}, India`;
+    
+    const result = await geocodeAddress(fullAddress);
+    
+    if (result) {
+      setGeocodeResult(result);
+      setGeocodeError(null);
+    } else {
+      setGeocodeError('Could not find location. You can still save without coordinates.');
+      setGeocodeResult(null);
+    }
+    
+    setGeocoding(false);
+  };
+
+  const handleMapPositionChange = (lat: number, lon: number) => {
+    setGeocodeResult(prev => prev ? { ...prev, latitude: lat, longitude: lon } : null);
   };
 
   return (
@@ -177,6 +216,59 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
           onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
           placeholder="Near temple, school, etc."
         />
+      </div>
+
+      {/* Location Verification */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleVerifyLocation}
+            disabled={geocoding}
+            className="flex items-center gap-2"
+          >
+            {geocoding ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              <>
+                <MapPin className="w-4 h-4" />
+                Verify Location
+              </>
+            )}
+          </Button>
+          {geocodeResult && (
+            <span className="text-sm text-success flex items-center gap-1">
+              <CheckCircle className="w-4 h-4" />
+              Location verified
+            </span>
+          )}
+        </div>
+
+        {geocodeError && (
+          <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+            <AlertCircle className="w-4 h-4" />
+            {geocodeError}
+          </div>
+        )}
+
+        {geocodeResult && geocodeResult.success && (
+          <div className="rounded-xl overflow-hidden border border-border">
+            <AddressMap
+              latitude={geocodeResult.latitude}
+              longitude={geocodeResult.longitude}
+              onLocationChange={handleMapPositionChange}
+              draggable={true}
+            />
+            <p className="text-xs text-muted-foreground p-2 bg-muted/50">
+              📍 Drag the pin to adjust location if needed
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
