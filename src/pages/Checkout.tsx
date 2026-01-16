@@ -15,6 +15,7 @@ import { AddressForm, AddressFormData } from '@/components/AddressForm';
 import { AddressCard, Address } from '@/components/AddressCard';
 import { PaymentQRCode } from '@/components/PaymentQRCode';
 import CouponInput from '@/components/CouponInput';
+import { LoyaltyRedemption } from '@/components/LoyaltyRedemption';
 
 type PaymentMethod = 'cod' | 'qr';
 type CheckoutStep = 'address' | 'payment' | 'review';
@@ -48,12 +49,21 @@ const Checkout = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
 
+  // Loyalty points state
+  const [pointsToUse, setPointsToUse] = useState(0);
+  const [pointsDiscount, setPointsDiscount] = useState(0);
+
   const deliveryCharge = totalPrice >= 499 ? 0 : 40;
-  const finalTotal = totalPrice + deliveryCharge - couponDiscount;
+  const finalTotal = totalPrice + deliveryCharge - couponDiscount - pointsDiscount;
 
   const handleCouponApplied = (coupon: CouponData | null, discountAmount: number) => {
     setAppliedCoupon(coupon);
     setCouponDiscount(discountAmount);
+  };
+
+  const handlePointsChange = (points: number, discount: number) => {
+    setPointsToUse(points);
+    setPointsDiscount(discount);
   };
 
   useEffect(() => {
@@ -161,6 +171,8 @@ const Checkout = () => {
           status: 'pending',
           coupon_id: appliedCoupon?.id || null,
           coupon_discount: couponDiscount,
+          points_used: pointsToUse,
+          points_discount: pointsDiscount,
         })
         .select()
         .single();
@@ -195,6 +207,35 @@ const Checkout = () => {
           .from('coupons')
           .update({ used_count: (appliedCoupon as any).used_count + 1 })
           .eq('id', appliedCoupon.id);
+      }
+
+      // Handle loyalty points redemption
+      if (pointsToUse > 0) {
+        // Update user's loyalty points
+        const { data: currentPoints } = await supabase
+          .from('loyalty_points')
+          .select('total_points, lifetime_spent')
+          .eq('user_id', user?.id)
+          .single();
+
+        if (currentPoints) {
+          await supabase
+            .from('loyalty_points')
+            .update({
+              total_points: (currentPoints.total_points || 0) - pointsToUse,
+              lifetime_spent: (currentPoints.lifetime_spent || 0) + pointsToUse,
+            })
+            .eq('user_id', user?.id);
+
+          // Record loyalty transaction
+          await supabase.from('loyalty_transactions').insert({
+            user_id: user?.id,
+            order_id: order.id,
+            points: -pointsToUse,
+            type: 'redeemed',
+            description: `Redeemed ${pointsToUse} points for order #${order.id.slice(0, 8).toUpperCase()}`,
+          });
+        }
       }
 
       if (orderNote.trim()) {
@@ -368,8 +409,16 @@ const Checkout = () => {
               </div>
             </RadioGroup>
 
-            {/* Coupon Input */}
+            {/* Loyalty Points Redemption */}
             <div className="mt-6">
+              <LoyaltyRedemption
+                orderTotal={totalPrice + deliveryCharge - couponDiscount}
+                onPointsChange={handlePointsChange}
+              />
+            </div>
+
+            {/* Coupon Input */}
+            <div className="mt-4">
               <CouponInput 
                 orderTotal={totalPrice} 
                 onCouponApplied={handleCouponApplied}
@@ -485,6 +534,12 @@ const Checkout = () => {
                   <div className="flex justify-between text-sm text-success">
                     <span>Coupon Discount</span>
                     <span>-₹{couponDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                {pointsDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-success">
+                    <span>Points Discount ({pointsToUse} pts)</span>
+                    <span>-₹{pointsDiscount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="border-t border-border pt-2 flex justify-between font-bold text-lg">
