@@ -29,9 +29,16 @@ interface Order {
   payment_method: string;
   payment_status: string;
   user_id: string;
+  assigned_delivery_boy: string | null;
   profile: { username: string; email: string; phone: string | null } | null;
   items: Array<{ quantity: number }>;
 }
+
+const deliveryFilterOptions = [
+  { value: 'all', label: 'All Delivery Status' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'unassigned', label: 'Unassigned' },
+];
 
 const statusOptions = [
   { value: 'all', label: 'All Orders' },
@@ -50,6 +57,7 @@ const AdminOrders = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [deliveryFilter, setDeliveryFilter] = useState(searchParams.get('delivery') || 'all');
 
   useEffect(() => {
     fetchOrders();
@@ -71,7 +79,7 @@ const AdminOrders = () => {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('id, created_at, updated_at, status, total_price, payment_method, payment_status, user_id, items:order_items(quantity)')
+        .select('id, created_at, updated_at, status, total_price, payment_method, payment_status, user_id, assigned_delivery_boy, items:order_items(quantity)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -107,9 +115,22 @@ const AdminOrders = () => {
       order.profile?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.profile?.phone?.includes(searchQuery);
+    const matchesDelivery = deliveryFilter === 'all' || 
+      (deliveryFilter === 'assigned' && order.assigned_delivery_boy) ||
+      (deliveryFilter === 'unassigned' && !order.assigned_delivery_boy);
     
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && matchesDelivery;
   });
+
+  const handleDeliveryFilterChange = (value: string) => {
+    setDeliveryFilter(value);
+    if (value === 'all') {
+      searchParams.delete('delivery');
+    } else {
+      searchParams.set('delivery', value);
+    }
+    setSearchParams(searchParams);
+  };
 
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
@@ -185,6 +206,19 @@ const AdminOrders = () => {
               ))}
             </SelectContent>
           </Select>
+          <Select value={deliveryFilter} onValueChange={handleDeliveryFilterChange}>
+            <SelectTrigger className="w-full sm:w-48">
+              <Truck className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filter by delivery" />
+            </SelectTrigger>
+            <SelectContent>
+              {deliveryFilterOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Status Pills */}
@@ -247,13 +281,23 @@ const AdminOrders = () => {
                           <Package className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-foreground">
                               #{order.id.slice(0, 8).toUpperCase()}
                             </p>
                             <Badge variant="outline" className={getStatusBadgeColor(order.status)}>
                               {order.status.replace('_', ' ')}
                             </Badge>
+                            {order.assigned_delivery_boy ? (
+                              <Badge variant="outline" className="bg-success/20 text-success">
+                                <Truck className="w-3 h-3 mr-1" />
+                                Assigned
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-muted text-muted-foreground">
+                                Unassigned
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {order.profile?.username || order.profile?.email || 'Customer'}
