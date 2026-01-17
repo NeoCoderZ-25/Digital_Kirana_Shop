@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Home, Briefcase, MapPin, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Home, Briefcase, MapPin, Loader2, CheckCircle, AlertCircle, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { geocodeAddress, GeocodingResult } from '@/services/geocoding';
+import { geocodeAddress, reverseGeocode, GeocodingResult } from '@/services/geocoding';
 import AddressMap from '@/components/AddressMap';
 
 export interface AddressFormData {
@@ -45,6 +45,7 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
   });
   const [errors, setErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({});
   const [geocoding, setGeocoding] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
   const [geocodeResult, setGeocodeResult] = useState<GeocodingResult | null>(null);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
@@ -121,6 +122,71 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
 
   const handleMapPositionChange = (lat: number, lon: number) => {
     setGeocodeResult(prev => prev ? { ...prev, latitude: lat, longitude: lon } : null);
+  };
+
+  const handleGetCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      setGeocodeError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setFetchingLocation(true);
+    setGeocodeError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Reverse geocode to get address
+        const result = await reverseGeocode(latitude, longitude);
+        
+        if (result && result.success) {
+          setGeocodeResult({
+            success: true,
+            latitude,
+            longitude,
+            displayName: result.address || 'Current Location'
+          });
+          
+          // Auto-fill form fields if available
+          setFormData(prev => ({
+            ...prev,
+            address: result.address || prev.address,
+            city: result.city || prev.city,
+            state: result.state || prev.state,
+            pincode: result.pincode || prev.pincode,
+          }));
+        } else {
+          // Still set the coordinates even if reverse geocode fails
+          setGeocodeResult({
+            success: true,
+            latitude,
+            longitude,
+            displayName: 'Current Location'
+          });
+        }
+        
+        setFetchingLocation(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let errorMessage = 'Failed to get location';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location access.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out.';
+            break;
+        }
+        setGeocodeError(errorMessage);
+        setFetchingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   return (
@@ -220,7 +286,27 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
 
       {/* Location Verification */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={handleGetCurrentLocation}
+            disabled={fetchingLocation}
+            className="flex items-center gap-2"
+          >
+            {fetchingLocation ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Fetching...
+              </>
+            ) : (
+              <>
+                <Navigation className="w-4 h-4" />
+                Use Current Location
+              </>
+            )}
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -237,14 +323,14 @@ export const AddressForm = ({ onSubmit, onCancel, loading }: AddressFormProps) =
             ) : (
               <>
                 <MapPin className="w-4 h-4" />
-                Verify Location
+                Verify Address
               </>
             )}
           </Button>
           {geocodeResult && (
             <span className="text-sm text-success flex items-center gap-1">
               <CheckCircle className="w-4 h-4" />
-              Location verified
+              Location set
             </span>
           )}
         </div>

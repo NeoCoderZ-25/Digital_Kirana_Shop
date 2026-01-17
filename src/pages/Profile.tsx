@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
+import { useDeliveryBoy } from '@/hooks/useDeliveryBoy';
 import AppLayout from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2, Settings } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2, Settings, Truck, Bell, Moon, Sun, Globe, Shield, Phone, Mail, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ProductCard } from '@/components/ProductCard';
@@ -17,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LoyaltyCard from '@/components/LoyaltyCard';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Address {
   id: string;
@@ -28,14 +32,24 @@ interface Address {
 const Profile = () => {
   const { user, signOut } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
+  const { isDeliveryBoy, loading: deliveryLoading } = useDeliveryBoy();
   const { toast } = useToast();
   const { favorites } = useFavorites();
+  const { language, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState('profile');
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [favoriteProducts, setFavoriteProducts] = useState<Product[]>([]);
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [newAddress, setNewAddress] = useState({ label: 'Home', address: '' });
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    username: '',
+    phone: '',
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
   const email = user?.email || '';
@@ -44,6 +58,10 @@ const Profile = () => {
   useEffect(() => {
     if (user) {
       fetchAddresses();
+      setProfileData({
+        username: user?.user_metadata?.username || user?.email?.split('@')[0] || '',
+        phone: user?.user_metadata?.phone || '',
+      });
     }
   }, [user]);
 
@@ -145,6 +163,50 @@ const Profile = () => {
     toast({ title: 'Logged out', description: 'You have been successfully logged out.' });
   };
 
+  const handleDarkModeToggle = (enabled: boolean) => {
+    setDarkMode(enabled);
+    if (enabled) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          username: profileData.username,
+          phone: profileData.phone,
+        }
+      });
+
+      if (error) throw error;
+
+      // Also update profiles table
+      await supabase
+        .from('profiles')
+        .update({
+          username: profileData.username,
+          phone: profileData.phone,
+        })
+        .eq('user_id', user.id);
+
+      toast({ title: 'Success', description: 'Profile updated successfully' });
+      setEditingProfile(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({ title: 'Error', description: 'Failed to update profile', variant: 'destructive' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="px-4 pt-6 pb-24">
@@ -159,16 +221,64 @@ const Profile = () => {
               </div>
               <div className="flex-1">
                 <h2 className="text-xl font-semibold text-foreground">{username}</h2>
-                <p className="text-muted-foreground text-sm">{email}</p>
-                <p className="text-muted-foreground text-sm">{phone}</p>
+                <p className="text-muted-foreground text-sm flex items-center gap-1">
+                  <Mail className="w-3 h-3" /> {email}
+                </p>
+                <p className="text-muted-foreground text-sm flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {phone}
+                </p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingProfile(true)}
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
 
+        {/* Edit Profile Dialog */}
+        <Dialog open={editingProfile} onOpenChange={setEditingProfile}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Username</Label>
+                <Input
+                  value={profileData.username}
+                  onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <Button onClick={handleSaveProfile} disabled={savingProfile} className="w-full">
+                {savingProfile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Admin Dashboard Card - Only visible to admins */}
         {!adminLoading && isAdmin && (
-          <Card className="mb-6 animate-fade-in border-primary/20 bg-primary/5">
+          <Card className="mb-4 animate-fade-in border-primary/20 bg-primary/5">
             <CardContent className="pt-6">
               <Link to="/admin" className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -186,6 +296,26 @@ const Profile = () => {
           </Card>
         )}
 
+        {/* Delivery Boy Dashboard Card - Only visible to delivery boys */}
+        {!deliveryLoading && isDeliveryBoy && (
+          <Card className="mb-4 animate-fade-in border-accent/20 bg-accent/5">
+            <CardContent className="pt-6">
+              <Link to="/delivery" className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center">
+                    <Truck className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Delivery Dashboard</h3>
+                    <p className="text-sm text-muted-foreground">View and manage your deliveries</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Loyalty Card */}
         <div className="mb-6">
           <LoyaltyCard />
@@ -193,13 +323,40 @@ const Profile = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="addresses">Addresses</TabsTrigger>
             <TabsTrigger value="favorites">Favorites</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile" className="space-y-3">
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <User className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Username</span>
+                  </div>
+                  <span className="font-medium">{username}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Email</span>
+                  </div>
+                  <span className="font-medium text-sm">{email}</span>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Phone</span>
+                  </div>
+                  <span className="font-medium">{phone}</span>
+                </div>
+              </CardContent>
+            </Card>
+
             <Dialog>
               <DialogTrigger asChild>
                 <button className="w-full flex items-center justify-between p-4 bg-card rounded-lg border border-border hover:bg-accent/10 transition-colors">
@@ -249,6 +406,85 @@ const Profile = () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  App Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Dark Mode */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    {darkMode ? <Moon className="w-5 h-5 text-muted-foreground" /> : <Sun className="w-5 h-5 text-muted-foreground" />}
+                    <div>
+                      <p className="font-medium">Dark Mode</p>
+                      <p className="text-xs text-muted-foreground">Toggle dark/light theme</p>
+                    </div>
+                  </div>
+                  <Switch checked={darkMode} onCheckedChange={handleDarkModeToggle} />
+                </div>
+
+                {/* Notifications */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Notifications</p>
+                      <p className="text-xs text-muted-foreground">Receive order updates</p>
+                    </div>
+                  </div>
+                  <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
+                </div>
+
+                {/* Language */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Language</p>
+                      <p className="text-xs text-muted-foreground">Select your preferred language</p>
+                    </div>
+                  </div>
+                  <Select value={language} onValueChange={(val: 'en' | 'hi') => setLanguage(val)}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="hi">हिंदी</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Privacy & Security
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <button className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-accent/10 transition-colors">
+                  <span className="text-sm">Privacy Policy</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </button>
+                <button className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-accent/10 transition-colors">
+                  <span className="text-sm">Terms of Service</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </button>
+                <button className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-accent/10 transition-colors">
+                  <span className="text-sm">Data & Permissions</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="addresses" className="space-y-3">
