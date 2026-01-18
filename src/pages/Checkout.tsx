@@ -5,11 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useWallet } from '@/hooks/useWallet';
 import { supabase } from '@/integrations/supabase/client';
-import { MapPin, Plus, CreditCard, Banknote, QrCode, Check, Loader2, ChevronRight, Shield, Truck } from 'lucide-react';
+import { 
+  MapPin, Plus, CreditCard, Banknote, QrCode, Check, Loader2, 
+  ChevronRight, Shield, Truck, Wallet, LocateFixed
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddressForm, AddressFormData } from '@/components/AddressForm';
 import { AddressCard, Address } from '@/components/AddressCard';
@@ -17,7 +23,7 @@ import { PaymentQRCode } from '@/components/PaymentQRCode';
 import CouponInput from '@/components/CouponInput';
 import { LoyaltyRedemption } from '@/components/LoyaltyRedemption';
 
-type PaymentMethod = 'cod' | 'qr';
+type PaymentMethod = 'cod' | 'qr' | 'wallet';
 type CheckoutStep = 'address' | 'payment' | 'review';
 
 interface CouponData {
@@ -35,6 +41,7 @@ const Checkout = () => {
   const { user } = useAuth();
   const { items, totalPrice, orderNote, clearCart } = useCart();
   const { toast } = useToast();
+  const { wallet, deductFunds, refetch: refetchWallet } = useWallet();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
@@ -45,6 +52,10 @@ const Checkout = () => {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('address');
   const [showQRPayment, setShowQRPayment] = useState(false);
   
+  // Wallet payment state
+  const [useWalletPartial, setUseWalletPartial] = useState(false);
+  const [walletAmount, setWalletAmount] = useState(0);
+  
   // Coupon state
   const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -54,7 +65,18 @@ const Checkout = () => {
   const [pointsDiscount, setPointsDiscount] = useState(0);
 
   const deliveryCharge = totalPrice >= 499 ? 0 : 40;
-  const finalTotal = totalPrice + deliveryCharge - couponDiscount - pointsDiscount;
+  const subtotalAfterDiscounts = totalPrice + deliveryCharge - couponDiscount - pointsDiscount;
+  const walletBalance = Number(wallet?.balance || 0);
+  
+  // Calculate wallet usage
+  const effectiveWalletAmount = paymentMethod === 'wallet' 
+    ? Math.min(walletBalance, subtotalAfterDiscounts)
+    : useWalletPartial 
+      ? Math.min(walletAmount, walletBalance, subtotalAfterDiscounts)
+      : 0;
+  
+  const finalTotal = subtotalAfterDiscounts - effectiveWalletAmount;
+  const remainingToPay = finalTotal;
 
   const handleCouponApplied = (coupon: CouponData | null, discountAmount: number) => {
     setAppliedCoupon(coupon);
@@ -71,6 +93,13 @@ const Checkout = () => {
       fetchAddresses();
     }
   }, [user]);
+
+  // Auto-set wallet amount to max when enabling partial payment
+  useEffect(() => {
+    if (useWalletPartial && walletBalance > 0) {
+      setWalletAmount(Math.min(walletBalance, subtotalAfterDiscounts));
+    }
+  }, [useWalletPartial, walletBalance, subtotalAfterDiscounts]);
 
   const fetchAddresses = async () => {
     const { data, error } = await supabase
@@ -151,33 +180,59 @@ const Checkout = () => {
       return;
     }
 
-    // If QR payment selected, show QR code first
-    if (paymentMethod === 'qr' && !showQRPayment) {
+    // If QR payment selected and has remaining amount, show QR code first
+    if (paymentMethod === 'qr' && !showQRPayment && remainingToPay > 0) {
       setShowQRPayment(true);
       return;
+    }
+
+    // Validate wallet balance for wallet payments
+    if ((paymentMethod === 'wallet' || useWalletPartial) && effectiveWalletAmount > 0) {
+      if (walletBalance < effectiveWalletAmount) {
+        toast({ title: 'Error', description: 'Insufficient wallet balance', variant: 'destructive' });
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
+      // Calculate return window (30 minutes after potential delivery)
+      const returnWindowMinutes = 30;
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: user?.id,
           address_id: selectedAddress,
           total_price: finalTotal,
-          payment_method: paymentMethod === 'qr' ? 'online' : 'cod',
-          payment_status: paymentMethod === 'qr' ? 'pending_verification' : 'pending',
+          payment_method: paymentMethod === 'wallet' ? 'wallet' : paymentMethod === 'qr' ? 'online' : 'cod',
+          payment_status: paymentMethod === 'wallet' && remainingToPay === 0 ? 'paid' : paymentMethod === 'qr' ? 'pending_verification' : 'pending',
           status: 'pending',
           coupon_id: appliedCoupon?.id || null,
           coupon_discount: couponDiscount,
           points_used: pointsToUse,
           points_discount: pointsDiscount,
+          wallet_payment: effectiveWalletAmount,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
+
+      // Deduct from wallet if using wallet payment
+      if (effectiveWalletAmount > 0) {
+        const success = await deductFunds(
+          effectiveWalletAmount,
+          `Payment for order #${order.id.slice(0, 8).toUpperCase()}`,
+          'order',
+          order.id
+        );
+        
+        if (!success) {
+          throw new Error('Failed to process wallet payment');
+        }
+      }
 
       const orderItems = items.map(item => ({
         order_id: order.id,
@@ -211,7 +266,6 @@ const Checkout = () => {
 
       // Handle loyalty points redemption
       if (pointsToUse > 0) {
-        // Update user's loyalty points
         const { data: currentPoints } = await supabase
           .from('loyalty_points')
           .select('total_points, lifetime_spent')
@@ -227,7 +281,6 @@ const Checkout = () => {
             })
             .eq('user_id', user?.id);
 
-          // Record loyalty transaction
           await supabase.from('loyalty_transactions').insert({
             user_id: user?.id,
             order_id: order.id,
@@ -247,6 +300,7 @@ const Checkout = () => {
           });
       }
 
+      await refetchWallet();
       clearCart();
       navigate(`/order-confirmation?orderId=${order.id}`);
     } catch (error) {
@@ -269,6 +323,7 @@ const Checkout = () => {
   ];
 
   const selectedAddressData = addresses.find(a => a.id === selectedAddress);
+  const canUseFullWallet = walletBalance >= subtotalAfterDiscounts;
 
   return (
     <AppLayout>
@@ -371,7 +426,41 @@ const Checkout = () => {
               </Card>
             )}
 
-            <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+            <RadioGroup value={paymentMethod} onValueChange={(v) => {
+              setPaymentMethod(v as PaymentMethod);
+              if (v === 'wallet') {
+                setUseWalletPartial(false);
+              }
+            }}>
+              {/* Wallet Option - Only show if has balance */}
+              {walletBalance > 0 && (
+                <div
+                  className={cn(
+                    'flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer mb-3',
+                    paymentMethod === 'wallet' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  )}
+                  onClick={() => setPaymentMethod('wallet')}
+                >
+                  <RadioGroupItem value="wallet" id="wallet" />
+                  <div className="p-3 rounded-xl bg-primary/20">
+                    <Wallet className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="wallet" className="font-semibold cursor-pointer">Wallet</Label>
+                      <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                        ₹{walletBalance.toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {canUseFullWallet 
+                        ? 'Pay full amount from wallet' 
+                        : `Use ₹${walletBalance.toFixed(2)} from wallet`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* COD Option */}
               <div
                 className={cn(
@@ -408,6 +497,44 @@ const Checkout = () => {
                 </div>
               </div>
             </RadioGroup>
+
+            {/* Partial Wallet Payment (for COD/QR) */}
+            {paymentMethod !== 'wallet' && walletBalance > 0 && (
+              <Card className="mt-4 border-primary/20">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Wallet className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">Use Wallet Balance</p>
+                        <p className="text-xs text-muted-foreground">Available: ₹{walletBalance.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={useWalletPartial}
+                      onCheckedChange={setUseWalletPartial}
+                    />
+                  </div>
+                  
+                  {useWalletPartial && (
+                    <div className="mt-3">
+                      <Label className="text-xs text-muted-foreground">Amount to use</Label>
+                      <Input
+                        type="number"
+                        value={walletAmount}
+                        onChange={(e) => setWalletAmount(Math.min(Number(e.target.value), walletBalance, subtotalAfterDiscounts))}
+                        max={Math.min(walletBalance, subtotalAfterDiscounts)}
+                        min={0}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Remaining to pay: ₹{(subtotalAfterDiscounts - walletAmount).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Loyalty Points Redemption */}
             <div className="mt-6">
@@ -452,7 +579,7 @@ const Checkout = () => {
             >
               ← Back to payment options
             </Button>
-            <PaymentQRCode amount={finalTotal} onPaymentConfirmed={handlePlaceOrder} />
+            <PaymentQRCode amount={remainingToPay} onPaymentConfirmed={handlePlaceOrder} />
           </div>
         )}
 
@@ -488,8 +615,18 @@ const Checkout = () => {
               </CardHeader>
               <CardContent className="pt-0">
                 <p className="font-medium">
-                  {paymentMethod === 'cod' ? '💵 Cash on Delivery' : '📱 UPI / QR Code Payment'}
+                  {paymentMethod === 'wallet' && '💳 Wallet Payment'}
+                  {paymentMethod === 'cod' && '💵 Cash on Delivery'}
+                  {paymentMethod === 'qr' && '📱 UPI / QR Code Payment'}
                 </p>
+                {effectiveWalletAmount > 0 && (
+                  <p className="text-sm text-primary">Wallet: ₹{effectiveWalletAmount.toFixed(2)}</p>
+                )}
+                {remainingToPay > 0 && paymentMethod !== 'wallet' && (
+                  <p className="text-sm text-muted-foreground">
+                    {paymentMethod === 'cod' ? 'Cash' : 'UPI'}: ₹{remainingToPay.toFixed(2)}
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -542,9 +679,15 @@ const Checkout = () => {
                     <span>-₹{pointsDiscount.toFixed(2)}</span>
                   </div>
                 )}
+                {effectiveWalletAmount > 0 && (
+                  <div className="flex justify-between text-sm text-primary">
+                    <span>Wallet Payment</span>
+                    <span>-₹{effectiveWalletAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="border-t border-border pt-2 flex justify-between font-bold text-lg">
-                  <span>Total</span>
-                  <span>₹{finalTotal.toFixed(2)}</span>
+                  <span>To Pay</span>
+                  <span>₹{remainingToPay.toFixed(2)}</span>
                 </div>
               </CardContent>
             </Card>
@@ -567,15 +710,20 @@ const Checkout = () => {
               </>
             ) : (
               <>
-                {paymentMethod === 'qr' ? (
+                {remainingToPay === 0 ? (
+                  <>
+                    <Check className="w-5 h-5 mr-2" />
+                    Place Order (Paid)
+                  </>
+                ) : paymentMethod === 'qr' ? (
                   <>
                     <QrCode className="w-5 h-5 mr-2" />
-                    Pay ₹{finalTotal.toFixed(2)}
+                    Pay ₹{remainingToPay.toFixed(2)}
                   </>
                 ) : (
                   <>
                     <Check className="w-5 h-5 mr-2" />
-                    Place Order - ₹{finalTotal.toFixed(2)}
+                    Place Order - ₹{remainingToPay.toFixed(2)}
                   </>
                 )}
               </>

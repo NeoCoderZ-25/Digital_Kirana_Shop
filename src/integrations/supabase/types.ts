@@ -238,6 +238,45 @@ export type Database = {
         }
         Relationships: []
       }
+      loyalty_rules: {
+        Row: {
+          created_at: string
+          currency_per_point: number | null
+          id: string
+          is_active: boolean | null
+          min_points_to_convert: number | null
+          name: string
+          points_per_currency: number | null
+          return_window_minutes: number | null
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency_per_point?: number | null
+          id?: string
+          is_active?: boolean | null
+          min_points_to_convert?: number | null
+          name: string
+          points_per_currency?: number | null
+          return_window_minutes?: number | null
+          rule_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency_per_point?: number | null
+          id?: string
+          is_active?: boolean | null
+          min_points_to_convert?: number | null
+          name?: string
+          points_per_currency?: number | null
+          return_window_minutes?: number | null
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       loyalty_settings: {
         Row: {
           id: string
@@ -438,6 +477,7 @@ export type Database = {
         Row: {
           address_id: string | null
           assigned_delivery_boy: string | null
+          can_return_until: string | null
           cancel_reason: string | null
           coupon_discount: number | null
           coupon_id: string | null
@@ -451,15 +491,18 @@ export type Database = {
           points_discount: number | null
           points_earned: number | null
           points_used: number | null
+          return_status: string | null
           scheduled_delivery: string | null
           status: string
           total_price: number
           updated_at: string | null
           user_id: string
+          wallet_payment: number | null
         }
         Insert: {
           address_id?: string | null
           assigned_delivery_boy?: string | null
+          can_return_until?: string | null
           cancel_reason?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
@@ -473,15 +516,18 @@ export type Database = {
           points_discount?: number | null
           points_earned?: number | null
           points_used?: number | null
+          return_status?: string | null
           scheduled_delivery?: string | null
           status?: string
           total_price: number
           updated_at?: string | null
           user_id: string
+          wallet_payment?: number | null
         }
         Update: {
           address_id?: string | null
           assigned_delivery_boy?: string | null
+          can_return_until?: string | null
           cancel_reason?: string | null
           coupon_discount?: number | null
           coupon_id?: string | null
@@ -495,11 +541,13 @@ export type Database = {
           points_discount?: number | null
           points_earned?: number | null
           points_used?: number | null
+          return_status?: string | null
           scheduled_delivery?: string | null
           status?: string
           total_price?: number
           updated_at?: string | null
           user_id?: string
+          wallet_payment?: number | null
         }
         Relationships: [
           {
@@ -624,6 +672,7 @@ export type Database = {
           image_url: string | null
           in_stock: boolean | null
           is_featured: boolean | null
+          loyalty_points: number | null
           name: string
           order_count: number | null
           price: number
@@ -637,6 +686,7 @@ export type Database = {
           image_url?: string | null
           in_stock?: boolean | null
           is_featured?: boolean | null
+          loyalty_points?: number | null
           name: string
           order_count?: number | null
           price: number
@@ -650,6 +700,7 @@ export type Database = {
           image_url?: string | null
           in_stock?: boolean | null
           is_featured?: boolean | null
+          loyalty_points?: number | null
           name?: string
           order_count?: number | null
           price?: number
@@ -785,6 +836,74 @@ export type Database = {
         Update: {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          reference_id: string | null
+          reference_type: string | null
+          type: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          type: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

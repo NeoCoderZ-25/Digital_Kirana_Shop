@@ -42,7 +42,8 @@ const AdminProductForm = () => {
     price: '',
     category_id: '',
     in_stock: true,
-    is_featured: false
+    is_featured: false,
+    loyalty_points: '0'
   });
   
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -76,7 +77,8 @@ const AdminProductForm = () => {
           price: product.price.toString(),
           category_id: product.category_id || '',
           in_stock: product.in_stock ?? true,
-          is_featured: product.is_featured ?? false
+          is_featured: product.is_featured ?? false,
+          loyalty_points: (product.loyalty_points || 0).toString()
         });
       }
 
@@ -146,7 +148,8 @@ const AdminProductForm = () => {
         image_url: primaryImage?.image_url || null,
         category_id: formData.category_id || null,
         in_stock: formData.in_stock,
-        is_featured: formData.is_featured
+        is_featured: formData.is_featured,
+        loyalty_points: parseInt(formData.loyalty_points) || 0
       };
 
       let productId = id;
@@ -338,6 +341,18 @@ const AdminProductForm = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div>
+                  <Label htmlFor="loyalty_points">Loyalty Points (earned on delivery)</Label>
+                  <Input
+                    id="loyalty_points"
+                    type="number"
+                    min="0"
+                    value={formData.loyalty_points}
+                    onChange={(e) => setFormData({ ...formData, loyalty_points: e.target.value })}
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Points customer earns when order is delivered</p>
                 </div>
               </CardContent>
             </Card>
