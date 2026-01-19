@@ -15,8 +15,11 @@ import {
   ShoppingBag,
   MessageSquare,
   Copy,
-  Check
+  Check,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +34,11 @@ interface OrderDetail {
   total_price: number;
   payment_method: string;
   payment_status: string;
+  can_return_until: string | null;
+  return_status: string | null;
+  points_earned: number | null;
+  wallet_payment: number | null;
+  delivered_at: string | null;
   address: { 
     label: string; 
     address: string;
@@ -43,7 +51,7 @@ interface OrderDetail {
     id: string;
     quantity: number;
     price: number;
-    product: { name: string; image_url: string } | null;
+    product: { name: string; image_url: string; loyalty_points: number | null } | null;
     variant: { name: string } | null;
   }>;
   notes: { user_note: string | null; admin_reply: string | null } | null;
@@ -134,7 +142,7 @@ const OrderTracking = () => {
           id,
           quantity,
           price,
-          product:products(name, image_url),
+          product:products(name, image_url, loyalty_points),
           variant:product_variants(name)
         ),
         notes:order_notes(user_note, admin_reply)
@@ -150,6 +158,146 @@ const OrderTracking = () => {
       setOrder(data);
     }
     setLoading(false);
+  };
+
+  const canReturnOrder = () => {
+    if (!order || order.status !== 'delivered' || order.return_status) return false;
+    if (!order.can_return_until) return false;
+    return new Date() < new Date(order.can_return_until);
+  };
+
+  const getReturnTimeRemaining = () => {
+    if (!order?.can_return_until) return null;
+    const remaining = new Date(order.can_return_until).getTime() - Date.now();
+    if (remaining <= 0) return null;
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const [returnTimeRemaining, setReturnTimeRemaining] = useState<string | null>(null);
+  const [returningOrder, setReturningOrder] = useState(false);
+
+  useEffect(() => {
+    if (order?.status === 'delivered' && order.can_return_until && !order.return_status) {
+      const interval = setInterval(() => {
+        const remaining = getReturnTimeRemaining();
+        setReturnTimeRemaining(remaining);
+        if (!remaining) {
+          clearInterval(interval);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [order]);
+
+  const handleReturnOrder = async () => {
+    if (!order || !user) return;
+    
+    setReturningOrder(true);
+    try {
+      // Calculate total points to deduct
+      let totalPointsToDeduct = 0;
+      order.items.forEach(item => {
+        if (item.product?.loyalty_points) {
+          totalPointsToDeduct += item.product.loyalty_points * item.quantity;
+        }
+      });
+
+      // Update order return status
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ 
+          return_status: 'completed',
+          status: 'cancelled'
+        })
+        .eq('id', order.id)
+        .eq('user_id', user.id);
+
+      if (orderError) throw orderError;
+
+      // Deduct loyalty points if any were earned
+      if (totalPointsToDeduct > 0) {
+        // Get current loyalty points
+        const { data: loyaltyData } = await supabase
+          .from('loyalty_points')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (loyaltyData) {
+          const newTotal = Math.max(0, (loyaltyData.total_points || 0) - totalPointsToDeduct);
+          
+          // Update loyalty points
+          await supabase
+            .from('loyalty_points')
+            .update({ 
+              total_points: newTotal,
+              lifetime_spent: (loyaltyData.lifetime_spent || 0) + totalPointsToDeduct
+            })
+            .eq('user_id', user.id);
+
+          // Record the deduction transaction
+          await supabase
+            .from('loyalty_transactions')
+            .insert({
+              user_id: user.id,
+              order_id: order.id,
+              points: -totalPointsToDeduct,
+              type: 'debit',
+              description: `Points deducted for returned order #${order.id.slice(0, 8).toUpperCase()}`
+            });
+        }
+      }
+
+      // Refund wallet payment if any
+      if (order.wallet_payment && order.wallet_payment > 0) {
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (walletData) {
+          await supabase
+            .from('wallets')
+            .update({ 
+              balance: walletData.balance + order.wallet_payment 
+            })
+            .eq('user_id', user.id);
+
+          await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              wallet_id: walletData.id,
+              type: 'credit',
+              amount: order.wallet_payment,
+              description: `Refund for returned order #${order.id.slice(0, 8).toUpperCase()}`,
+              reference_type: 'refund',
+              reference_id: order.id
+            });
+        }
+      }
+
+      toast({ 
+        title: 'Order Returned', 
+        description: totalPointsToDeduct > 0 
+          ? `Order returned successfully. ${totalPointsToDeduct} loyalty points deducted.`
+          : 'Order returned successfully.'
+      });
+      
+      fetchOrder();
+    } catch (error) {
+      console.error('Error returning order:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to return order. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setReturningOrder(false);
+    }
   };
 
   const getStatusIndex = (status: string) => {
@@ -262,6 +410,72 @@ const OrderTracking = () => {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Return Order Banner - Shows when within 30-minute window */}
+        {isDelivered && canReturnOrder() && returnTimeRemaining && (
+          <Card className="mb-6 border-2 border-accent bg-accent/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-accent" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground">Return Window Open</p>
+                  <p className="text-sm text-muted-foreground">
+                    Time remaining: <span className="font-mono font-bold text-accent">{returnTimeRemaining}</span>
+                  </p>
+                </div>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Return Order
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Return Order</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to return this order? 
+                      {order?.points_earned && order.points_earned > 0 && (
+                        <span className="block mt-2 text-destructive font-medium">
+                          ⚠️ {order.points_earned} loyalty points will be deducted from your account.
+                        </span>
+                      )}
+                      {order?.wallet_payment && order.wallet_payment > 0 && (
+                        <span className="block mt-2 text-success font-medium">
+                          ₹{order.wallet_payment} will be refunded to your wallet.
+                        </span>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleReturnOrder}
+                      disabled={returningOrder}
+                      className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    >
+                      {returningOrder ? 'Processing...' : 'Confirm Return'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Return Completed Banner */}
+        {order?.return_status === 'completed' && (
+          <Card className="mb-6 border-2 border-muted bg-muted/5">
+            <CardContent className="p-4 text-center">
+              <RotateCcw className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="font-semibold text-foreground">Order Returned</p>
+              <p className="text-sm text-muted-foreground">This order has been returned successfully</p>
             </CardContent>
           </Card>
         )}
