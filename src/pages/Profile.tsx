@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2, Settings, Truck, Bell, Moon, Sun, Globe, Shield, Phone, Mail, Loader2 } from 'lucide-react';
+import { User, MapPin, Heart, Lock, LogOut, Trash2, ChevronRight, Plus, Edit2, Settings, Truck, Bell, Moon, Sun, Globe, Shield, Phone, Mail, Loader2, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ProductCard } from '@/components/ProductCard';
@@ -20,6 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LoyaltyCard from '@/components/LoyaltyCard';
+import WalletCard from '@/components/WalletCard';
+import PointsConversion from '@/components/PointsConversion';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Address {
@@ -315,6 +317,16 @@ const Profile = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Wallet Card */}
+        <div className="mb-4">
+          <WalletCard />
+        </div>
+
+        {/* Points Conversion */}
+        <div className="mb-4">
+          <PointsConversion />
+        </div>
 
         {/* Loyalty Card */}
         <div className="mb-6">

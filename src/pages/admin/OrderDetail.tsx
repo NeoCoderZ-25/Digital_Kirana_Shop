@@ -240,10 +240,23 @@ const AdminOrderDetail = () => {
     setUpdating(true);
 
     try {
+      const updateData: Record<string, unknown> = { 
+        status: newStatus, 
+        updated_at: new Date().toISOString() 
+      };
+
+      // If marking as delivered, set delivery time and return window
+      if (newStatus === 'delivered') {
+        const now = new Date();
+        updateData.delivered_at = now.toISOString();
+        // Set 30-minute return window
+        updateData.can_return_until = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
+      }
+
       // Update order status
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', order.id);
 
       if (orderError) throw orderError;
@@ -260,6 +273,11 @@ const AdminOrderDetail = () => {
 
       if (historyError) throw historyError;
 
+      // Award loyalty points when order is delivered
+      if (newStatus === 'delivered') {
+        await awardLoyaltyPoints(order.id, order.user_id);
+      }
+
       setOrder({ ...order, status: newStatus });
       setStatusNote('');
       fetchStatusHistory();
@@ -269,6 +287,97 @@ const AdminOrderDetail = () => {
       toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const awardLoyaltyPoints = async (orderId: string, userId: string) => {
+    try {
+      // Get order items with their products to calculate total loyalty points
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          quantity,
+          product:products(loyalty_points)
+        `)
+        .eq('order_id', orderId);
+
+      if (itemsError) throw itemsError;
+
+      // Calculate total points from products
+      let totalPoints = 0;
+      orderItems?.forEach(item => {
+        const productPoints = item.product?.loyalty_points || 0;
+        totalPoints += productPoints * item.quantity;
+      });
+
+      if (totalPoints <= 0) return;
+
+      // Get or create user's loyalty points record
+      let { data: loyaltyData, error: loyaltyError } = await supabase
+        .from('loyalty_points')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (loyaltyError && loyaltyError.code === 'PGRST116') {
+        // Create new loyalty record
+        const { data: newLoyalty, error: createError } = await supabase
+          .from('loyalty_points')
+          .insert({ 
+            user_id: userId, 
+            total_points: 0,
+            lifetime_earned: 0,
+            lifetime_spent: 0,
+            tier: 'bronze'
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        loyaltyData = newLoyalty;
+      } else if (loyaltyError) {
+        throw loyaltyError;
+      }
+
+      // Update loyalty points
+      const newTotalPoints = (loyaltyData?.total_points || 0) + totalPoints;
+      const newLifetimeEarned = (loyaltyData?.lifetime_earned || 0) + totalPoints;
+
+      const { error: updateError } = await supabase
+        .from('loyalty_points')
+        .update({
+          total_points: newTotalPoints,
+          lifetime_earned: newLifetimeEarned,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      // Record the loyalty transaction
+      await supabase
+        .from('loyalty_transactions')
+        .insert({
+          user_id: userId,
+          order_id: orderId,
+          points: totalPoints,
+          type: 'earned',
+          description: `Earned from order #${orderId.slice(0, 8).toUpperCase()}`
+        });
+
+      // Update the order with points earned
+      await supabase
+        .from('orders')
+        .update({ points_earned: totalPoints })
+        .eq('id', orderId);
+
+      toast({ 
+        title: 'Points Awarded', 
+        description: `${totalPoints} loyalty points awarded to customer` 
+      });
+    } catch (error) {
+      console.error('Error awarding loyalty points:', error);
+      // Don't show error toast - points can be awarded manually if needed
     }
   };
 

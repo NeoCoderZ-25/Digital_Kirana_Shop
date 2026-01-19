@@ -32,6 +32,8 @@ import AdminReviews from "./pages/admin/Reviews";
 import AdminCoupons from "./pages/admin/Coupons";
 import AdminCouponForm from "./pages/admin/CouponForm";
 import AdminLoyalty from "./pages/admin/Loyalty";
+import AdminWallets from "./pages/admin/Wallets";
+import AdminPoints from "./pages/admin/Points";
 
 // Delivery Pages
 import DeliveryDashboard from "./pages/delivery/Dashboard";
@@ -152,6 +154,8 @@ const AppRoutes = () => (
     <Route path="/admin/coupons/new" element={<AdminRoute><AdminCouponForm /></AdminRoute>} />
     <Route path="/admin/coupons/:id/edit" element={<AdminRoute><AdminCouponForm /></AdminRoute>} />
     <Route path="/admin/loyalty" element={<AdminRoute><AdminLoyalty /></AdminRoute>} />
+    <Route path="/admin/wallets" element={<AdminRoute><AdminWallets /></AdminRoute>} />
+    <Route path="/admin/points" element={<AdminRoute><AdminPoints /></AdminRoute>} />
     
     <Route path="*" element={<NotFound />} />
   </Routes>
