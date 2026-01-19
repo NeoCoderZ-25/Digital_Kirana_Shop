@@ -24,7 +24,7 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-import { Star, Tag, Award } from 'lucide-react';
+import { Star, Tag, Award, Wallet } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -33,6 +33,7 @@ const navItems = [
   { icon: FolderOpen, label: 'Categories', path: '/admin/categories' },
   { icon: Star, label: 'Reviews', path: '/admin/reviews' },
   { icon: Tag, label: 'Coupons', path: '/admin/coupons' },
+  { icon: Wallet, label: 'Wallets', path: '/admin/wallets' },
   { icon: Award, label: 'Loyalty', path: '/admin/loyalty' },
   { icon: QrCode, label: 'Payment QR', path: '/admin/payment-qr' },
   { icon: Users, label: 'Customers', path: '/admin/customers' },
