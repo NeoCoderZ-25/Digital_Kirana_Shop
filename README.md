@@ -46,7 +46,7 @@ Progress is stated honestly.
 > ⚠️ This is a **functional UI/UX prototype**, not production-ready.
 
 🔗 **Preview URL:**  
-👉 https://digital-shop-x.lovable.app
+👉 <a href="https://digital-shop-x.lovable.app">Click-To-Visit-Preview</a>
 
 Expect:
 - Incomplete backend logic  
