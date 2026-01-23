@@ -6,110 +6,127 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Status-Planning%20Phase-blue" />
-  <img src="https://img.shields.io/badge/Development%20Start-01%20Jan%202026-orange" />
+  <img src="https://img.shields.io/badge/Status-Paused%20(Planned%20Resume)-yellow" />
+  <img src="https://img.shields.io/badge/Development%20Restart-01%20Feb%202026-orange" />
 </p>
 
 ---
 
 ## 🚀 What This Project Is
 
-This project aims to help **kirana shop owners go digital** without forcing them into:
+This project helps **kirana shop owners go digital** without forcing them into:
+
 - bloated enterprise software  
 - overpriced SaaS tools  
-- complex dashboards they’ll never use  
+- complex dashboards they won’t understand or use  
 
-The focus is brutal simplicity.
+The philosophy is **brutal simplicity**.
 
-If a feature doesn’t **help sell products or manage orders**, it does not belong here.
+If a feature does **not directly help sell products, manage orders, or deliver them**, it does not belong here.
 
 ---
 
 ## ⏳ Project Timeline (Read This First)
 
 > ⚠️ **Important**
->
-> This project is **NOT under active development right now**.
->
-> - 🗓️ **Official development start date:** **01 January 2026**
-> - 📌 Current codebase is an **early foundation / prototype**
-> - 📋 Features listed below represent **planned scope**, not completed work
 
-This is not a fake “100% completed” demo.
-It is an intentional, staged product build.
+This project is **currently paused**, not abandoned.
+
+- 🗓️ **Development restart date:** **01 February 2026**
+- 📌 Current codebase is a **working prototype**
+- 📋 Feature list below reflects **planned + partially completed work**
+
+This is not a fake “fully completed” demo.  
+Progress is stated honestly.
 
 ---
 
-## 🌐 Live Preview (Early Prototype)
+## 🌐 Live Preview (Prototype)
 
-> ⚠️ This is an **early UI/UX prototype**, not production-ready.
+> ⚠️ This is a **functional UI/UX prototype**, not production-ready.
 
 🔗 **Preview URL:**  
-<a href="https://digital-shop-x.lovable.app">Click-To-Visit-Preview</a>
+👉 https://digital-shop-x.lovable.app
 
 Expect:
-- Incomplete flows  
-- Missing admin functionality  
-- Temporary logic and placeholders  
+- Incomplete backend logic  
+- Missing edge-case handling  
+- Temporary mock data  
 
-This preview exists only to validate **design direction and usability**.
+The preview exists only to validate **usability and flow**, not performance or security.
 
 ---
 
+## 🧠 Development Status
 
-🧠 Development Status
+Built using **vibe coding with Lovable**
 
-Built using vibe coding with Lovable
+### 📊 Feature Completion Overview
 
-~70% User Panel completed
+| Module              | Status |
+|---------------------|--------|
+| 👥 User Panel        | **80% Completed** |
+| 🛠️ Admin Panel       | **80% Completed** |
+| 🚚 Delivery Boy Panel| **20% Completed** |
+| 🔧 Backend Logic     | Minimal / Mocked |
 
-Admin Panel not started yet
+---
 
-Backend logic is minimal / mocked
+### ⏸️ Why Development Is Paused
 
+- Lovable **free credits exhausted**
+- Credits **renew on 01 February 2026**
 
-⏸️ Why Paused?
+Development will **resume immediately** after renewal.
 
-Lovable free credits exhausted
-
-Credits renew on 01 January 2026
-
-
-Development will resume from that date.
-
+No work is being done in the meantime.
 
 ---
 
 ## ✨ Planned Features
 
-### 👥 User Panel
-- 📦 Product listing with categories
-- 🔍 Product detail pages
-- 🛒 Cart & checkout flow
-- 📱 Fully responsive, mobile-first UI
+### 👥 User Panel (80%)
 
-### 🛠️ Admin Panel
-- ➕ Add / Edit / Remove products
-- 📊 Inventory management
-- 📬 Order handling
-- ⚙️ Shop configuration & settings
+- 📦 Product listing with categories  
+- 🔍 Product detail pages  
+- 🛒 Cart & checkout flow  
+- 📱 Fully responsive, mobile-first UI  
 
-Everything will be built for **non-technical shop owners**.
-If it needs training, it’s already a failure.
+---
+
+### 🛠️ Admin Panel (80%)
+
+- ➕ Add / Edit / Remove products  
+- 📊 Inventory management  
+- 📬 Order handling  
+- ⚙️ Shop configuration & basic settings  
+
+Built for **non-technical shop owners**.  
+If training is required, the feature is a failure.
+
+---
+
+### 🚚 Delivery Boy Panel (20%)
+
+- 📥 Assigned order list  
+- 📍 Order status updates (planned)  
+- 📱 Mobile-first minimal UI  
+
+This module will be expanded **after core commerce is stable**.
 
 ---
 
 ## 🧰 Tech Stack
 
-- ⚡ Vite
-- ⚛️ React
-- 📘 TypeScript
-- 🎨 Tailwind CSS
-- 🧩 shadcn/ui
+- ⚡ Vite  
+- ⚛️ React  
+- 📘 TypeScript  
+- 🎨 Tailwind CSS  
+- 🧩 shadcn/ui  
 
 Chosen for:
-- speed
-- maintainability
+- speed  
+- maintainability  
 - long-term scalability  
 
 Not because they’re trendy.
@@ -119,12 +136,14 @@ Not because they’re trendy.
 ## 🧪 Local Development
 
 ### Prerequisites
+
 - Node.js (LTS)
 - npm
 
-If you don’t have these installed, **don’t proceed**.
+If these are not installed, **do not proceed**.
 
 ### Setup
+
 ```bash
 git clone <REPO_URL>
 cd <PROJECT_NAME>
